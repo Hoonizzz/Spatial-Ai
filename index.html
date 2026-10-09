@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4f3ed">
+  <title>강남역 · Spatial Lab</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23284f45'/%3E%3Cpath d='M16 6 26 16 16 26 6 16Z' fill='none' stroke='%23f4f3ed' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="viewport" aria-label="강남역 반경 100미터 3D 공간"></main>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="brand-icon">◈</span> SPATIAL LAB</a>
+    <span class="live"><i></i> INTERACTIVE MODEL</span>
+  </header>
+  <section class="intro">
+    <p class="eyebrow">SEOUL / GANGNAM STATION</p>
+    <h1>사람과 공간,<br>그 사이의 움직임.</h1>
+    <p class="description">강남역을 중심으로 펼쳐지는 100m의 공간.<br>사람을 선택하고, 원하는 위치를 클릭해 보세요.</p>
+    <div class="stats"><div><strong>100<span>m</span></strong><small>공간 반경</small></div><div><strong>06</strong><small>이동 가능한 사람</small></div></div>
+  </section>
+  <aside class="panel" aria-label="사람 선택 및 이동 제어">
+    <div class="panel-title"><span>PEOPLE IN SPACE</span><span>06</span></div>
+    <div class="group-label"><i class="dot office"></i> 회사원 <span>Business look</span></div>
+    <div class="people" id="office"></div>
+    <div class="group-label"><i class="dot tourist"></i> 관광객 <span>Hawaiian + backpack</span></div>
+    <div class="people" id="tourists"></div>
+    <div class="selection"><span id="selected-title">이동할 사람을 선택하세요</span><span id="position">—</span></div>
+    <div class="actions"><button id="stop" disabled>이동 정지</button><button id="reset">처음 위치로</button></div>
+    <p id="status" role="status" aria-live="polite">A–F 버튼 또는 공간 속 사람을 클릭하세요.</p>
+  </aside>
+  <footer><span><i class="boundary-key"></i> 반경 100m 경계</span><span>드래그하여 시점 회전 · 스크롤하여 확대</span><span>SCHEMATIC VIEW · 실제 지도 아님</span></footer>
+  <div id="loading" role="status">공간을 준비하고 있습니다…</div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
