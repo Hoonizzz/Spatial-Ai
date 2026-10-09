@@ -1,224 +1,218 @@
 import * as THREE from './vendor/three.module.js';
-import { RADIUS, OBSTACLES, TREES, PEOPLE, validPoint, findRoute } from './model.mjs';
+import {createNetwork,randomTourist,shortestRoute,locationOnLeg,coordinates,distance,WALK_SPEED} from './model.mjs?v=soho-1';
 
-const root=document.querySelector('#viewport'), status=document.querySelector('#status');
-let renderer;
-try {
-  renderer=new THREE.WebGLRenderer({antialias:true});
-} catch(error) {
-  document.querySelector('#loading').textContent='3D 화면을 열 수 없습니다. WebGL을 지원하는 브라우저에서 다시 열어주세요.';
-  throw error;
-}
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=.85;
-renderer.setClearColor(0xf4f3ed);
-root.appendChild(renderer.domElement);
-const scene=new THREE.Scene();
-const camera=new THREE.OrthographicCamera();
-let angle=Math.PI/4, zoom=1;
-const viewTarget=new THREE.Vector3(0,0,0);
-const sun=new THREE.DirectionalLight(0xfff5e7,2);sun.position.set(-70,130,60);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-130;sun.shadow.camera.right=130;
-sun.shadow.camera.top=130;sun.shadow.camera.bottom=-130;sun.shadow.camera.far=400;
-sun.shadow.normalBias=0.2;scene.add(sun,new THREE.HemisphereLight(0xffffff,0x97aa9b,1.4));
-const mat=(color,extra={})=>new THREE.MeshStandardMaterial({color,roughness:.88,...extra});
-function box(w,h,d,color,x,y,z,parent=scene) {
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(color));mesh.position.set(x,y,z);
-  mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;
-}
-function cylinder(r,h,color,x,y,z,parent=scene,segments=24) {
-  const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,segments),mat(color));mesh.position.set(x,y,z);
-  mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;
-}
-function label(text,color='#294e42',size=5) {
-  const c=document.createElement('canvas');c.width=256;c.height=96;
-  const ctx=c.getContext('2d');ctx.font='600 42px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillStyle=color;ctx.fillText(text,128,48);
-  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
-  sprite.scale.set(size*2.7,size,1);return sprite;
-}
-// A schematic urban ground; all ground except marked buildings/furniture is traversable.
-const ground=new THREE.Mesh(new THREE.CircleGeometry(RADIUS,160),mat(0xdce5d8));
-ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-cylinder(RADIUS,1.6,0xc7d3c4,0,-.85,0,scene,160);
-function road(w,d,x,z) {const m=box(w,.12,d,0xd5d9d3,x,.08,z);m.castShadow=false;}
-road(27,196,0,0);road(196,24,0,0);
-for(let k=-80;k<=80;k+=12){
-  if(Math.abs(k)<19) continue;
-  box(.5,.02,5,0xf6f4df,0,.17,k);box(5,.02,.5,0xf6f4df,k,.17,0);
-}
-for(const sign of [-1,1]) for(let i=-10;i<=10;i+=4){
-  box(2.5,.03,7,0xfaf9ed,i,.19,sign*23);
-  box(7,.03,2.5,0xfaf9ed,sign*24,.19,i);
-}
-const boundaryPoints=[];
-for(let i=0;i<256;i++){const a=i/255*Math.PI*2;boundaryPoints.push(new THREE.Vector3(Math.cos(a)*RADIUS,.25,Math.sin(a)*RADIUS));}
-const boundary=new THREE.Line(new THREE.BufferGeometry().setFromPoints(boundaryPoints),new THREE.LineDashedMaterial({color:0x6d9e89,dashSize:2,gapSize:1.4}));
-boundary.computeLineDistances();scene.add(boundary);
-const boundaryLabel=label('R 100m','#6d8f7e',5);boundaryLabel.position.set(76,2,61);scene.add(boundaryLabel);
-// Station marker at the exact local origin, outside the movement plane.
-cylinder(4.8,.25,0xf4f1df,0,.3,0);
-const station=label('강남역','#335b4e',5);station.position.set(0,3,0);scene.add(station);
-const originRing=new THREE.Mesh(new THREE.RingGeometry(5.6,5.85,64),new THREE.MeshBasicMaterial({color:0x86a691,side:THREE.DoubleSide}));
-originRing.rotation.x=-Math.PI/2;originRing.position.y=.2;scene.add(originRing);
-OBSTACLES.slice(0,6).forEach((o,i)=>{
-  if(i<4){
-    const h=[18,24,13,20][i];
-    box(o.w,h,o.d,0xe8e9dd,o.x,h/2,o.z);
-    box(o.w+.8,.8,o.d+.8,0xc4ccbf,o.x,h,o.z);
-    box(o.w-4,1,o.d-4,0xd4dbcc,o.x,h+.8,o.z);
-    for(let y=5;y<h-2;y+=5)for(let x=-o.w/2+3;x<o.w/2;x+=4){
-      box(1.8,2,.15,0xa7bbb2,o.x+x,y,o.z+o.d/2+.1);
+const $=id=>document.getElementById(id),status=$('status');
+async function boot(){
+  const response=await fetch('./data/soho.json?v=soho-1');
+  if(!response.ok)throw new Error(`Map data could not be loaded (${response.status}).`);
+  const data=await response.json(),network=createNetwork(data);
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  renderer.setClearColor(0xf5f3ed);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  $('viewport').appendChild(renderer.domElement);
+  const scene=new THREE.Scene(),camera=new THREE.OrthographicCamera();
+  const light=new THREE.DirectionalLight(0xfff3e5,2.3);light.position.set(-450,900,350);light.castShadow=true;
+  light.shadow.mapSize.set(1024,1024);light.shadow.camera.left=-750;light.shadow.camera.right=750;
+  light.shadow.camera.top=750;light.shadow.camera.bottom=-750;light.shadow.camera.far=2000;light.shadow.normalBias=.5;
+  scene.add(light,new THREE.HemisphereLight(0xffffff,0x9ca88d,1.5));
+  const material=(color,extra={})=>new THREE.MeshStandardMaterial({color,roughness:.92,...extra});
+  let dirty=true,angle=Math.PI*.8,zoom=1,selected=null,tourist=randomTourist(network),route=null,walking=false,legIndex=0,legDistance=0,traveled=0;
+  const shapeFor=(points,holes=[])=>{
+    const shape=new THREE.Shape(points.map(p=>new THREE.Vector2(p.x??p[0],-(p.z??p[1]))));
+    for(const hole of holes)shape.holes.push(new THREE.Path(hole.map(([x,z])=>new THREE.Vector2(x,-z))));
+    return shape;
+  };
+  const ground=new THREE.Mesh(new THREE.ExtrudeGeometry(shapeFor(data.boundary),{depth:3,bevelEnabled:false}),material(0xe7e5d9));
+  ground.geometry.rotateX(-Math.PI/2);ground.position.y=-3;ground.receiveShadow=true;scene.add(ground);
+  function stripGeometry(segments,width,y){
+    const values=[];
+    for(const [a,b] of segments){
+      const len=distance(a,b);if(len<.001)continue;
+      const dx=-(b.z-a.z)/len*width/2,dz=(b.x-a.x)/len*width/2;
+      const p=[[a.x+dx,y,a.z+dz],[a.x-dx,y,a.z-dz],[b.x+dx,y,b.z+dz],[b.x-dx,y,b.z-dz]];
+      for(const i of [0,1,2,2,1,3])values.push(...p[i]);
     }
-    const name=label(['OFFICE','WORKSPACE','CAFE','STAY'][i],'#94a496',3.2);name.position.set(o.x,h+4,o.z);scene.add(name);
-  }else{
-    box(o.w,.6,o.d,0xb59c78,o.x,2,o.z);box(o.w,.8,.5,0xb59c78,o.x,3,o.z-1);
-    for(const s of [-1,1])box(.6,2,2,0x687f6c,o.x+s*3,1,o.z);
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(values,3));geo.computeVertexNormals();return geo;
   }
-});
-// Small planted islands stay clear of primary movement lanes. Trees are visual ground cover.
-for(const [x,z] of TREES){
-  cylinder(.55,5,0x9d9475,x,2.5,z);
-  const foliage=new THREE.Mesh(new THREE.IcosahedronGeometry(4.5,1),mat(0x9fb69c));foliage.position.set(x,7,z);foliage.castShadow=true;scene.add(foliage);
-}
+  const roads=new THREE.Mesh(stripGeometry(data.streetSegments,11,.12),material(0xd2d2c7,{side:THREE.DoubleSide}));
+  roads.receiveShadow=true;scene.add(roads);
+  const borderPoints=[...data.boundary,data.boundary[0]].map(p=>new THREE.Vector3(p.x,.25,p.z));
+  const border=new THREE.Line(new THREE.BufferGeometry().setFromPoints(borderPoints),new THREE.LineDashedMaterial({color:0x879b7b,dashSize:7,gapSize:5}));
+  border.computeLineDistances();scene.add(border);
 
-function floralTexture(color) {
-  const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');
-  ctx.fillStyle=`#${color.toString(16).padStart(6,'0')}`;ctx.fillRect(0,0,128,128);
-  for(let y=12;y<128;y+=28)for(let x=12;x<128;x+=28){
-    ctx.fillStyle='#fff2d6';
-    for(let p=0;p<5;p++){const a=p*Math.PI*2/5;ctx.beginPath();ctx.ellipse(x+Math.cos(a)*4,y+Math.sin(a)*4,3,2,a,0,Math.PI*2);ctx.fill();}
-    ctx.fillStyle='#5c8067';ctx.fillRect(x+6,y+6,2,5);
-  }
-  return new THREE.CanvasTexture(c);
-}
-const actors=[], hitMeshes=[];
-function createPerson(data){
-  const group=new THREE.Group();group.position.set(data.x,0,data.z);scene.add(group);
-  const body=new THREE.Group();body.scale.setScalar(1.25);group.add(body);
-  const office=data.role==='office_worker',pants=office?data.color:0xc4b18f;
-  const legs=[box(.72,2,.85,pants,-.52,1.7,0,body),box(.72,2,.85,pants,.52,1.7,0,body)];
-  for(const s of [-1,1])box(.85,.55,1.25,office?0x333f40:0xf0eee0,s*.52,.4,.17,body);
-  const torso=box(2,2.2,1.15,data.color,0,3.75,0,body);
-  if(!office){torso.material=mat(0xffffff,{map:floralTexture(data.color)});}
-  for(const s of [-1,1]){
-    box(.6,office?2:1.05,.85,data.color,s*1.32,office?3.5:4.1,0,body);
-    box(.48,office?.45:1.15,.6,0xe0ba98,s*1.32,office?2.3:3.1,0,body);
-  }
-  if(office){
-    box(.8,1.8,.08,0xf7f4e9,0,3.8,.61,body);
-    box(.18,1.35,.08,0xb68971,0,3.85,.68,body);
-  }else{
-    box(1.65,1.9,.7,0x566a5e,0,3.65,-.9,body);
-    for(const s of [-1,1])box(.15,2.05,.1,0x586b5f,s*.68,3.7,.66,body);
-  }
-  cylinder(.7,1.2,0xe0ba98,0,5.5,0,body);
-  cylinder(.73,.4,0x4d4c40,0,6.05,0,body);
-  const tag=label(data.id,office?'#3c5961':'#bb784e',6);tag.position.set(0,11,0);group.add(tag);
-  const ring=new THREE.Mesh(new THREE.RingGeometry(2.35,2.65,48),new THREE.MeshBasicMaterial({color:0x477d67,side:THREE.DoubleSide,transparent:true,opacity:.85}));
-  ring.rotation.x=-Math.PI/2;ring.position.y=.24;ring.visible=false;group.add(ring);
-  group.traverse(o=>{if(o.isMesh||o.isSprite){o.userData.personId=data.id;if(o!==ring)hitMeshes.push(o);}});
-  const person={...data,group,body,legs,ring,route:[],movement:'STOP',direction:0,speed:12};actors.push(person);
-  const button=document.createElement('button');button.textContent=data.id;button.className='person-button';button.dataset.id=data.id;
-  button.setAttribute('aria-pressed','false');button.setAttribute('aria-label',`${data.id} ${office?'회사원':'관광객'} 선택`);
-  button.onclick=()=>selectPerson(data.id);
-  document.querySelector(office?'#office':'#tourists').appendChild(button);
-}
-PEOPLE.forEach(createPerson);
-let selected=null;
-const destination=new THREE.Mesh(new THREE.RingGeometry(1.8,2.2,40),new THREE.MeshBasicMaterial({color:0xda9765,side:THREE.DoubleSide}));
-destination.rotation.x=-Math.PI/2;destination.position.y=.3;destination.visible=false;scene.add(destination);
-function showTarget(){
-  const end=selected?.route.at(-1);destination.visible=!!end;
-  if(end)destination.position.set(end.x,.3,end.z);
-}
-function selectPerson(id){
-  selected=actors.find(p=>p.id===id);
-  actors.forEach(p=>p.ring.visible=p===selected);
-  document.querySelectorAll('.person-button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===id)));
-  document.querySelector('#selected-title').textContent=`${id} · ${selected.role==='office_worker'?'회사원':'관광객'}`;
-  document.querySelector('#stop').disabled=false;
-  status.textContent=`${id} 선택됨 · 공간 안의 이동할 위치를 클릭하세요.`;showTarget();
-}
-function setDestination(point){
-  if(!selected){status.textContent='먼저 이동할 사람 A–F를 선택하세요.';return false;}
-  if(!validPoint(point)){status.textContent='이동 불가: 경계 밖이거나 건물·장애물과 너무 가까운 위치입니다.';return false;}
-  const route=findRoute({x:selected.group.position.x,z:selected.group.position.z},point);
-  if(!route){status.textContent='도달할 수 없는 위치입니다. 다른 위치를 선택하세요.';return false;}
-  selected.route=route;selected.movement='MOVE';showTarget();status.textContent=`${selected.id}가 선택한 위치로 이동합니다.`;return true;
-}
-document.querySelector('#stop').onclick=()=>{
-  if(!selected)return;selected.route=[];selected.movement='STOP';showTarget();status.textContent=`${selected.id}의 이동을 정지했습니다.`;
-};
-document.querySelector('#reset').onclick=()=>{
-  actors.forEach(p=>{p.route=[];p.movement='STOP';p.group.position.set(p.x,0,p.z);p.body.rotation.y=0;});
-  showTarget();status.textContent='모든 사람을 처음 위치로 되돌렸습니다.';
-};
-function resize(){
-  const w=innerWidth,h=innerHeight,aspect=w/h;
-  renderer.setSize(w,h);const size=(w<640?185:145)/zoom;
-  camera.left=-size*aspect;camera.right=size*aspect;camera.top=size;camera.bottom=-size;camera.near=.1;camera.far=1000;
-  camera.setViewOffset(w,h,w<640?0:Math.round(w*.025),w<640?Math.round(-h*.075):0,w,h);
-  camera.position.set(Math.sin(angle)*200,205,Math.cos(angle)*200);camera.lookAt(viewTarget);camera.updateProjectionMatrix();
-}
-addEventListener('resize',resize);resize();
-const raycaster=new THREE.Raycaster(),mouse=new THREE.Vector2();
-const movementPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-let pointer=null;
-const canvas=renderer.domElement;
-canvas.addEventListener('pointerdown',e=>{
-  if(e.button!==0)return;pointer={id:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,dragged:false};canvas.setPointerCapture(e.pointerId);
-});
-canvas.addEventListener('pointermove',e=>{
-  if(!pointer||e.pointerId!==pointer.id)return;
-  if(Math.hypot(e.clientX-pointer.x,e.clientY-pointer.y)>6)pointer.dragged=true;
-  if(pointer.dragged){angle-=(e.clientX-pointer.lastX)*.006;resize();}
-  pointer.lastX=e.clientX;
-});
-canvas.addEventListener('pointercancel',()=>pointer=null);
-canvas.addEventListener('pointerup',e=>{
-  if(!pointer||e.pointerId!==pointer.id)return;
-  const dragged=pointer.dragged;pointer=null;if(dragged)return;
-  const rect=canvas.getBoundingClientRect();mouse.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
-  raycaster.setFromCamera(mouse,camera);
-  const hit=raycaster.intersectObjects(hitMeshes,false).find(intersection=>{
-    if(!intersection.object.isSprite)return true;
-    // Ignore the transparent canvas surrounding identifier letters.
-    const image=intersection.object.material.map.image,uv=intersection.uv;
-    if(!uv)return false;
-    const x=Math.min(image.width-1,Math.max(0,Math.floor(uv.x*image.width)));
-    const y=Math.min(image.height-1,Math.max(0,Math.floor((1-uv.y)*image.height)));
-    return image.getContext('2d').getImageData(x,y,1,1).data[3]>64;
+  // Batch all building surfaces into one draw call while retaining face-to-ID ranges.
+  const geometries=[],ranges=[],positions=[],normals=[],colors=[];
+  const palette=[0xb69a87,0xc6b6a1,0xd6c9b3,0xa5aca0,0xb6b49f,0xc2a896];
+  let vertexCount=0;
+  data.buildings.forEach((building,i)=>{
+    let geo=new THREE.ExtrudeGeometry(shapeFor(building.footprint,building.holes),{depth:building.height,bevelEnabled:false});
+    geo.rotateX(-Math.PI/2);if(geo.index)geo=geo.toNonIndexed();geometries.push(geo);
+    const p=geo.getAttribute('position').array,n=geo.getAttribute('normal').array,c=new Float32Array(p.length);
+    const wall=new THREE.Color(palette[i%palette.length]),roof=new THREE.Color(0xdedbcc);
+    for(let k=0;k<p.length;k+=3){const color=n[k+1]>.7?roof:wall;c[k]=color.r;c[k+1]=color.g;c[k+2]=color.b;}
+    positions.push(p);normals.push(n);colors.push(c);vertexCount+=p.length/3;
+    ranges.push(vertexCount/3);
   });
-  if(hit){selectPerson(hit.object.userData.personId);return;}
-  const p=new THREE.Vector3();if(raycaster.ray.intersectPlane(movementPlane,p))setDestination({x:p.x,z:p.z});
-});
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=THREE.MathUtils.clamp(zoom-e.deltaY*.0007,.7,2);resize();},{passive:false});
-let last=performance.now();
-function tick(now){
-  const dt=Math.min((now-last)/1000,.05);last=now;
-  for(const p of actors){
-    if(p.route.length){
-      const target=p.route[0],dx=target.x-p.group.position.x,dz=target.z-p.group.position.z,distance=Math.hypot(dx,dz),step=p.speed*dt;
-      if(distance<=step){p.group.position.x=target.x;p.group.position.z=target.z;p.route.shift();}
-      else{p.group.position.x+=dx/distance*step;p.group.position.z+=dz/distance*step;}
-      p.direction=Math.atan2(dx,dz);p.body.rotation.y=p.direction;
-      p.legs.forEach((leg,i)=>leg.rotation.x=Math.sin(now*.009+i*Math.PI)*.2);
-      if(!p.route.length){p.movement='STOP';if(p===selected){showTarget();status.textContent=`${p.id}가 목적지에 도착했습니다.`;}}
-    }else p.legs.forEach(leg=>leg.rotation.x=0);
+  const concat=arrays=>{const result=new Float32Array(arrays.reduce((sum,a)=>sum+a.length,0));let offset=0;for(const a of arrays){result.set(a,offset);offset+=a.length;}return result;};
+  const cityGeo=new THREE.BufferGeometry();
+  cityGeo.setAttribute('position',new THREE.BufferAttribute(concat(positions),3));
+  cityGeo.setAttribute('normal',new THREE.BufferAttribute(concat(normals),3));
+  cityGeo.setAttribute('color',new THREE.BufferAttribute(concat(colors),3));
+  const city=new THREE.Mesh(cityGeo,material(0xffffff,{vertexColors:true}));city.castShadow=true;city.receiveShadow=true;scene.add(city);
+  function buildingAtFace(face){
+    let low=0,high=ranges.length-1;
+    while(low<high){const mid=(low+high)>>1;if(face<ranges[mid])high=mid;else low=mid+1;}
+    return data.buildings[low];
   }
-  if(selected)document.querySelector('#position').textContent=`${selected.group.position.x.toFixed(1)}, ${selected.group.position.z.toFixed(1)} m`;
-  renderer.render(scene,camera);requestAnimationFrame(tick);
+  const selectedMesh=new THREE.Mesh(new THREE.BufferGeometry(),material(0xa49abb,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  selectedMesh.visible=false;scene.add(selectedMesh);
+
+  function label(text,color,size=22){
+    const c=document.createElement('canvas');c.width=256;c.height=96;const ctx=c.getContext('2d');
+    ctx.font='600 40px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,128,48);
+    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));sprite.scale.set(size*2.6,size,1);return sprite;
+  }
+  const destinationLabel=label('','#8574a8');destinationLabel.visible=false;scene.add(destinationLabel);
+  function updateDestinationLabel(text){
+    const old=destinationLabel.material.map,replacement=label(text,'#78678f',20);
+    destinationLabel.material.map=replacement.material.map;destinationLabel.material.needsUpdate=true;old.dispose();replacement.material.dispose();
+  }
+  // Navigation marker is deliberately enlarged; metric city geometry is unchanged.
+  const person=new THREE.Group(),body=new THREE.Group();person.add(body);scene.add(person);body.scale.setScalar(3);
+  function box(w,h,d,color,x,y,z){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(color));m.position.set(x,y,z);m.castShadow=true;body.add(m);return m;
+  }
+  const legs=[box(.7,2,.8,0x8c997c,-.5,1.5,0),box(.7,2,.8,0x8c997c,.5,1.5,0)];
+  for(const s of [-1,1]){box(.8,.5,1.2,0xe8e4d6,s*.5,.4,.1);box(.6,1,.8,0xd68d62,s*1.3,3.8,0);box(.45,1.1,.6,0xd6ad87,s*1.3,2.9,0);}
+  const shirt=box(2,2.1,1.2,0xd68d62,0,3.5,0);
+  const shirtCanvas=document.createElement('canvas');shirtCanvas.width=shirtCanvas.height=128;
+  const ctx=shirtCanvas.getContext('2d');ctx.fillStyle='#d68d62';ctx.fillRect(0,0,128,128);
+  for(let x=10;x<128;x+=25)for(let y=10;y<128;y+=25){ctx.fillStyle='#fff0c9';for(let a=0;a<5;a++){ctx.beginPath();ctx.arc(x+Math.cos(a*1.256)*4,y+Math.sin(a*1.256)*4,3,0,Math.PI*2);ctx.fill();}}
+  shirt.material=material(0xffffff,{map:new THREE.CanvasTexture(shirtCanvas)});
+  box(1.6,2,.8,0x586c57,0,3.4,-1);for(const s of [-1,1])box(.16,2,.1,0x586c57,s*.7,3.5,.65);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.75,12,8),material(0xd6ad87));head.position.y=5.15;body.add(head);
+  const hair=box(1.3,.45,1.25,0x494b3d,0,5.65,0);
+  const personLabel=label('T','#b47750',40);personLabel.position.y=43;person.add(personLabel);
+  const marker=new THREE.Mesh(new THREE.RingGeometry(4.5,6.5,40),new THREE.MeshBasicMaterial({color:0xd68d62,side:THREE.DoubleSide,depthTest:false}));
+  marker.rotation.x=-Math.PI/2;marker.position.y=.5;person.add(marker);
+  const origin=label('0, 0','#8b9b80',12);origin.position.set(0,.5,0);scene.add(origin);
+  const originCross=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-6,.3,0),new THREE.Vector3(6,.3,0),new THREE.Vector3(0,.3,-6),new THREE.Vector3(0,.3,6)
+  ]),new THREE.LineBasicMaterial({color:0x899a7b}));scene.add(originCross);
+  let routeMesh=null;
+  function drawRoute(){
+    if(routeMesh){scene.remove(routeMesh);routeMesh.geometry.dispose();routeMesh.material.dispose();routeMesh=null;}
+    if(route?.legs.length){
+      routeMesh=new THREE.Mesh(stripGeometry(route.legs.map(leg=>[leg.from,leg.to]),3.2,.55),new THREE.MeshBasicMaterial({color:0xd38959,side:THREE.DoubleSide,depthTest:false}));
+      routeMesh.renderOrder=4;scene.add(routeMesh);
+    }
+    dirty=true;
+  }
+  function formatGeo(point){const c=coordinates(point,data);return `${c.latitude.toFixed(6)}° N · ${Math.abs(c.longitude).toFixed(6)}° W`;}
+  $('local-origin').textContent=`Origin · ${formatGeo({x:0,z:0})}`;
+  function updatePosition(){
+    person.position.set(tourist.point.x,0,tourist.point.z);
+    $('position-x').textContent=tourist.point.x.toFixed(1);$('position-z').textContent=tourist.point.z.toFixed(1);
+    $('geo-position').textContent=formatGeo(tourist.point);dirty=true;
+  }
+  const select=$('destination');
+  for(const building of data.buildings){
+    const option=document.createElement('option');option.value=building.id;option.textContent=`${building.id} · ${building.name}${building.entrance?'':' · No modeled access'}`;select.appendChild(option);
+  }
+  select.disabled=false;$('building-count').textContent=data.buildings.length;
+  function showRoute(){
+    $('route-distance').textContent=route?route.distance.toFixed(0):'—';
+    $('route-time').textContent=route?(route.distance/WALK_SPEED/60).toFixed(1):'—';
+    $('route-badge').textContent=route?'Route ready':selected?'No modeled access':'Choose destination';
+    $('walk').disabled=!route||route.distance<.01;$('pause').disabled=true;
+    $('walk').innerHTML='Start walk <span>→</span>';$('walk-progress').style.width='0%';
+    $('directions').replaceChildren();
+    if(route){
+      for(const step of route.steps){const li=document.createElement('li'),text=document.createElement('span'),length=document.createElement('small');
+        text.textContent=step.text;length.textContent=step.distance?`${step.distance.toFixed(0)} m`:'';li.append(text,length);$('directions').appendChild(li);}
+    }else{const li=document.createElement('li');li.className='empty-directions';li.textContent=selected?'No connected entrance exists for this building in the model.':'Your route and directions will appear here.';$('directions').appendChild(li);}
+    drawRoute();
+  }
+  function selectBuilding(id){
+    const building=data.buildings.find(b=>b.id===id);walking=false;legIndex=0;legDistance=0;traveled=0;selected=building??null;select.value=building?.id??'';
+    selectedMesh.visible=!!building;destinationLabel.visible=!!building;$('building-details').hidden=!building;
+    if(building){
+      const index=data.buildings.indexOf(building);selectedMesh.geometry=geometries[index];
+      updateDestinationLabel(building.id);destinationLabel.position.set(building.center.x,building.height+20,building.center.z);
+      $('building-name').textContent=`${building.id} · ${building.name}`;$('building-height').textContent=`${building.height.toFixed(1)} m high`;
+      const p=building.entrance?.door??building.center;
+      $('building-position').textContent=`${building.entrance?'Entrance':'Center'} · X ${p.x.toFixed(1)}, Z ${p.z.toFixed(1)} m`;
+      $('building-geo').textContent=formatGeo(p);
+      route=shortestRoute(network,tourist,building);
+      status.textContent=route?`Shortest modeled walk from Tourist T to ${building.id}. Follow the orange route.`:'This building has no connected modeled entrance. Choose a different building.';
+    }else{route=null;status.textContent='Select any 3D building to plan a walk.';}
+    $('tourist-state').textContent=tourist.accessId?'At a modeled entrance':'On a SoHo street';showRoute();return !!route;
+  }
+  select.addEventListener('change',()=>selectBuilding(select.value));
+  $('respawn').onclick=()=>{tourist=randomTourist(network);updatePosition();selectBuilding(selected?.id);status.textContent=selected&&route?'New street position generated. The shortest route has been recalculated.':'New street position generated. Select a building to plan a walk.';};
+  $('walk').onclick=()=>{
+    if(!route||route.distance<.01)return;
+    if(legIndex>=route.legs.length)selectBuilding(selected.id);
+    walking=true;$('walk').disabled=true;$('pause').disabled=false;$('tourist-state').textContent='Walking · 20× playback';$('route-badge').textContent='Walking';status.textContent='Tourist T is following the route. Coordinates update as the tourist moves.';
+  };
+  $('pause').onclick=()=>{walking=false;$('walk').disabled=false;$('walk').innerHTML='Resume walk <span>→</span>';$('pause').disabled=true;$('tourist-state').textContent='Paused';$('route-badge').textContent='Paused';status.textContent='Walk paused. Resume, or choose another building to replan from this position.';dirty=true;};
+  function advanceWalk(seconds){
+    if(!walking||!route)return;
+    let budget=seconds*WALK_SPEED*20;
+    while(budget>0&&legIndex<route.legs.length){
+      const leg=route.legs[legIndex],step=Math.min(budget,leg.length-legDistance);
+      legDistance+=step;traveled+=step;budget-=step;tourist=locationOnLeg(leg,Math.min(1,legDistance/leg.length));
+      body.rotation.y=Math.atan2(leg.to.x-leg.from.x,leg.to.z-leg.from.z);
+      if(legDistance>=leg.length-1e-8){legIndex++;legDistance=0;}
+    }
+    updatePosition();$('walk-progress').style.width=`${Math.min(100,traveled/route.distance*100)}%`;
+    if(legIndex>=route.legs.length){walking=false;traveled=route.distance;$('walk-progress').style.width='100%';$('walk').disabled=true;$('pause').disabled=true;$('tourist-state').textContent=`Arrived at ${selected.id}`;$('route-badge').textContent='Arrived';status.textContent=`Arrived at the modeled entrance of ${selected.name}. Select another building to continue.`;}
+  }
+
+  function resize(){
+    const w=innerWidth,h=innerHeight,aspect=w/h,size=(w<=760?780:560)/zoom;
+    renderer.setSize(w,h);camera.left=-size*aspect;camera.right=size*aspect;camera.top=size;camera.bottom=-size;camera.near=.1;camera.far=4000;
+    // Reserve the mobile bottom panel without changing geographic positions.
+    camera.setViewOffset(w,h,w<=760?0:Math.round(w*.025),w<=760?Math.round(h*.13):0,w,h);
+    camera.position.set(Math.sin(angle)*1100,1050,Math.cos(angle)*1100);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    $('north-arrow').style.transform=`rotate(${angle*180/Math.PI}deg)`;dirty=true;
+  }
+  addEventListener('resize',resize);resize();
+  const changeZoom=delta=>{zoom=THREE.MathUtils.clamp(zoom+delta,.65,3);resize();};
+  $('zoom-in').onclick=()=>changeZoom(.2);$('zoom-out').onclick=()=>changeZoom(-.2);
+  $('reset-view').onclick=()=>{angle=Math.PI*.8;zoom=1;resize();};
+  const raycaster=new THREE.Raycaster(),mouse=new THREE.Vector2(),canvas=renderer.domElement;
+  let pointer=null;
+  canvas.addEventListener('pointerdown',e=>{if(e.button!==0)return;pointer={id:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,dragged:false};canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointermove',e=>{
+    if(!pointer||e.pointerId!==pointer.id)return;
+    if(Math.hypot(e.clientX-pointer.x,e.clientY-pointer.y)>6)pointer.dragged=true;
+    if(pointer.dragged){angle-=(e.clientX-pointer.lastX)*.005;resize();}pointer.lastX=e.clientX;
+  });
+  canvas.addEventListener('pointercancel',()=>pointer=null);
+  canvas.addEventListener('pointerup',e=>{
+    if(!pointer||e.pointerId!==pointer.id)return;
+    const dragged=pointer.dragged;pointer=null;if(dragged)return;
+    const rect=canvas.getBoundingClientRect();mouse.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);raycaster.setFromCamera(mouse,camera);
+    const hit=raycaster.intersectObject(city,false)[0];
+    if(hit)selectBuilding(buildingAtFace(hit.faceIndex).id);
+    else status.textContent='Click a building, or choose one from the destination list. Use ↻ to generate a new starting point.';
+  });
+  canvas.addEventListener('wheel',e=>{e.preventDefault();changeZoom(-e.deltaY*.0008);},{passive:false});
+  updatePosition();
+  let last=performance.now();
+  function tick(now){const dt=Math.min((now-last)/1000,.1);last=now;
+    if(walking){advanceWalk(dt);legs.forEach((leg,i)=>leg.rotation.x=Math.sin(now*.009+i*Math.PI)*.2);}
+    else legs.forEach(leg=>leg.rotation.x=0);
+    if(dirty){renderer.render(scene,camera);dirty=false;}requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);$('loading').remove();document.documentElement.dataset.ready='true';
+  if(new URLSearchParams(location.search).has('test'))window.spatialTest={
+    state:()=>({tourist:structuredClone(tourist),selected:selected?.id??null,walking,route:route?structuredClone(route):null,buildingCount:data.buildings.length}),
+    selectBuilding,advanceWalk,
+    buildings:()=>data.buildings,
+    screen:(x,z,y=0)=>{const p=new THREE.Vector3(x,y,z).project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
+  };
 }
-requestAnimationFrame(tick);
-document.querySelector('#loading').remove();
-document.documentElement.dataset.ready='true';
-// Opt-in browser-test interface; absent in normal visits.
-if(new URLSearchParams(location.search).has('test'))window.spatialTest={
-  state:()=>actors.map(p=>({id:p.id,role:p.role,x:p.group.position.x,z:p.group.position.z,movement:p.movement,route:p.route.map(q=>({...q}))})),
-  screen:(x,z,y=0)=>{const p=new THREE.Vector3(x,y,z).project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};},
-  selectPerson,setDestination
-};
+boot().catch(error=>{console.error(error);$('loading').textContent='Unable to open the 3D map. Reload, or use a browser with WebGL enabled.';status.textContent=error.message;});
