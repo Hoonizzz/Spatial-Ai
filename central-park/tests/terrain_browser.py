@@ -22,9 +22,24 @@ with sync_playwright() as p:
  snapshot=page.evaluate('''async()=>{const {exampleData}=await import('./example.js');const {unproject}=await import('./engine.js');const d=exampleData();for(const n of d.raw.elements)if(n.type==='node')n.tags={...n.tags,ele:20+(n.lat-40.78)*100};return JSON.stringify({...d,schema:'cp-snapshot-1',a:unproject(d.a),b:unproject(d.b),manifest:{mode:'controlled-test-fixture'}});}''')
  page.locator('#import').set_input_files({'name':'terrain-test.json','mimeType':'application/json','buffer':snapshot.encode()})
  page.wait_for_function("document.querySelector('#warnings').textContent.includes('Terrain ascent:')")
- assert page.locator('#elevationProfile path').count()==1
+ assert page.locator('#elevationProfile').count()==0
+ assert page.locator('.timeline').count()==1
+ assert page.locator('#chart #elevationOverlay').count()==1
+ assert page.locator('#chart #cumulativeOverlay').count()==1
+ # Both series use the same elapsed-time extent, not time versus distance.
+ extents=page.evaluate("['cumulativeOverlay','elevationOverlay'].map(id=>{const p=document.getElementById(id);return [p.getPointAtLength(0).x,p.getPointAtLength(p.getTotalLength()).x]})")
+ for start,end in extents:
+  assert abs(start-55)<.01 and abs(end-945)<.01,extents
+ page.locator('#scrubber').evaluate("e=>{e.value=500;e.dispatchEvent(new Event('input'))}")
+ assert abs(float(page.locator('#playhead').get_attribute('x1'))-500)<.01
+ original=page.locator('#elevationOverlay').get_attribute('d')
+ page.locator('[data-metric=usd]').click()
+ assert page.locator('#elevationOverlay').get_attribute('d')==original
+ assert 'Fare (USD)' in page.locator('#chart').text_content()
+ page.locator('[data-metric=kcal]').click()
+ page.locator('.timeline').screenshot(path='/tmp/central-park-overlap.png')
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors
- print('PASS: English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, snapshot terrain route and elevation profile; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
+ print('PASS: English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
  b.close()
