@@ -37,13 +37,13 @@ with sync_playwright() as p:
  page.locator('#scrubber').evaluate("e=>{e.value=850;e.dispatchEvent(new Event('input'))}")
  assert positions()[0]==atArrival
  humanKcal=page.locator('#kcal').inner_text()
- page.locator('#agentFocus').select_option('horse')
+ page.locator('#agentFocus').check()
  assert page.locator('#usd').inner_text()=='N/A'
  assert page.locator('#kcal').inner_text()!=humanKcal
  assert page.locator('[data-metric=usd]').is_disabled()
  assert 'not calibrated' in page.locator('#kcalRange').inner_text()
  assert page.locator('[data-route-agent=horse]').count()>0
- page.locator('#agentFocus').select_option('human')
+ page.locator('#agentFocus').uncheck()
  page.locator('#reset').click()
  page.locator('#aboutButton').click();assert '1:18' in page.locator('#about').inner_text();page.locator('#closeAbout').click()
  page.route('https://s3.amazonaws.com/**',lambda r:r.fulfill(status=200,content_type='image/png',body=png,headers={'Access-Control-Allow-Origin':'*'}))
@@ -69,7 +69,7 @@ with sync_playwright() as p:
  page.locator('[data-metric=kcal]').click()
  page.locator('.timeline').screenshot(path='/tmp/central-park-overlap.png')
  # Horse-specific results and export must work independently of Citi Bike stations.
- page.locator('#agentFocus').select_option('horse')
+ page.locator('#agentFocus').check()
  page.locator('#scrubber').evaluate("e=>{e.value=1000;e.dispatchEvent(new Event('input'))}")
  assert 'Horse:' in page.locator('#agentStatus').inner_text() and page.locator('#agentStatus').inner_text().count('Arrived')==2
  assert page.locator('#currentCost').inner_text()=='Cumulative '+page.locator('#kcal').inner_text()+' kcal'
@@ -82,9 +82,9 @@ with sync_playwright() as p:
   csv=z.read('cumulative.csv').decode();assert csv.splitlines()[-1].endswith(',')
   assert json.loads(z.read('snapshot.json'))['settings']['horse']['mass']==500
  page.locator('#horseSettings').evaluate("e=>e.open=true")
- page.locator('#horseSpeed').fill('3');page.locator('#horseSpeed').dispatch_event('change')
+ page.locator('#horseSpeed').fill('3');page.locator('#horseSpeed').press('Tab')
  page.wait_for_function("document.querySelector('#warnings').textContent.includes('Terrain ascent:')")
- page.locator('#agentFocus').select_option('horse')
+ page.locator('#agentFocus').check()
  assert 'base speed 3 km/h' in page.locator('#stationDetail').inner_text()
  import json
  horseOnly=json.loads(snapshot);horseOnly['stations']=[]
@@ -92,6 +92,13 @@ with sync_playwright() as p:
  page.wait_for_function("document.querySelector('#warnings').textContent.includes('Human:')")
  assert page.locator('[data-agent=horse]').count()==1 and page.locator('[data-agent=human]').count()==0
  assert page.locator('#usd').inner_text()=='N/A'
+ # An unavailable human result can still be explicitly selected.
+ page.locator('#agentFocus').uncheck()
+ assert page.locator('#agentAvailability').is_visible()
+ assert 'Human route unavailable' in page.locator('#agentAvailability').inner_text()
+ assert page.locator('#kcal').inner_text()=='—'
+ page.locator('#agentFocus').check()
+ assert not page.locator('#agentAvailability').is_visible()
  # A horse access failure must not make the human use the horse's road network.
  noHorse=json.loads(snapshot)
  for e in noHorse['raw']['elements']:
@@ -99,6 +106,27 @@ with sync_playwright() as p:
  page.locator('#import').set_input_files({'name':'no-horse.json','mimeType':'application/json','buffer':json.dumps(noHorse).encode()})
  page.wait_for_function("document.querySelector('#warnings').textContent.includes('No mapped horse-permitted network')")
  assert page.locator('[data-agent=human]').count()==1 and page.locator('[data-agent=horse]').count()==0
+ # Regression: missing horse route must never disable or silently revert the switch.
+ page.locator('#agentFocus').uncheck()
+ page.locator('#scrubber').evaluate("e=>{e.value=300;e.dispatchEvent(new Event('input'))}")
+ elapsed=page.locator('#clock').inner_text()
+ page.locator('#agentFocus').check()
+ assert page.locator('#agentFocus').is_checked() and page.locator('#agentFocus').is_enabled()
+ assert page.locator('#clock').inner_text()==elapsed
+ assert page.locator('#agentAvailability').is_visible()
+ assert 'purple dashed horse network' in page.locator('#agentAvailability').inner_text()
+ assert page.locator('#kcal').inner_text()=='—'
+ assert page.locator('#cumulativeOverlay').count()==0
+ assert page.locator('#export').is_disabled()
+ page.locator('#play').click();page.wait_for_timeout(300);page.locator('#play').click()
+ assert page.locator('#clock').inner_text()!=elapsed
+ assert page.locator('[data-agent=human]').count()==1
+ page.locator('.timeline').screenshot(path='/tmp/agent-toggle-unavailable.png')
+ page.locator('#agentFocus').focus();page.locator('#agentFocus').press('Space')
+ assert not page.locator('#agentFocus').is_checked()
+ assert page.locator('#agentAvailability').is_hidden()
+ assert page.locator('#cumulativeOverlay').count()==1
+ assert page.locator('#kcal').inner_text()!='—'
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors
