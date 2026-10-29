@@ -87,48 +87,39 @@ with sync_playwright() as p:
  page.locator('#agentFocus').check()
  assert 'base speed 3 km/h' in page.locator('#stationDetail').inner_text()
  import json
- horseOnly=json.loads(snapshot);horseOnly['stations']=[]
- page.locator('#import').set_input_files({'name':'horse-only.json','mimeType':'application/json','buffer':json.dumps(horseOnly).encode()})
- page.wait_for_function("document.querySelector('#warnings').textContent.includes('Human:')")
- assert page.locator('[data-agent=horse]').count()==1 and page.locator('[data-agent=human]').count()==0
- assert page.locator('#usd').inner_text()=='N/A'
- # An unavailable human result can still be explicitly selected.
- page.locator('#agentFocus').uncheck()
- assert page.locator('#agentAvailability').is_visible()
- assert 'Human route unavailable' in page.locator('#agentAvailability').inner_text()
- assert page.locator('#kcal').inner_text()=='—'
- page.locator('#agentFocus').check()
- assert not page.locator('#agentAvailability').is_visible()
- # A horse access failure must not make the human use the horse's road network.
+ # Horse tags no longer select a separate route; both geometries must match.
  noHorse=json.loads(snapshot)
  for e in noHorse['raw']['elements']:
   if e['type']=='way':e['tags']['horse']='no'
- page.locator('#import').set_input_files({'name':'no-horse.json','mimeType':'application/json','buffer':json.dumps(noHorse).encode()})
- page.wait_for_function("document.querySelector('#warnings').textContent.includes('No mapped horse-permitted network')")
- assert page.locator('[data-agent=human]').count()==1 and page.locator('[data-agent=horse]').count()==0
- # Regression: missing horse route must never disable or silently revert the switch.
- page.locator('#agentFocus').uncheck()
+ page.locator('#import').set_input_files({'name':'shared-human.json','mimeType':'application/json','buffer':json.dumps(noHorse).encode()})
+ page.wait_for_function("document.querySelector('#warnings').textContent.includes('Terrain ascent:')")
+ assert page.locator('[data-agent=human]').count()==1 and page.locator('[data-agent=horse]').count()==1
+ humanPaths=page.locator('[data-route-agent=human]').evaluate_all("es=>es.map(e=>e.getAttribute('d'))")
+ horsePaths=page.locator('[data-route-agent=horse]').evaluate_all("es=>es.map(e=>e.getAttribute('d'))")
+ assert humanPaths==horsePaths
+ assert page.locator('#agentAvailability').is_hidden()
+ assert page.locator('#agentFocus').is_checked()
+ assert 'shared human route' in page.locator('#stationDetail').inner_text()
+ assert page.locator('#usd').inner_text()=='N/A'
+ # Missing shared routes remain honestly unavailable and the toggle still works.
+ missing=json.loads(snapshot);missing['stations']=[]
+ page.locator('#import').set_input_files({'name':'missing-shared-route.json','mimeType':'application/json','buffer':json.dumps(missing).encode()})
+ page.wait_for_function("document.querySelector('#agentAvailability').textContent.includes('shared human route is unavailable')")
+ assert page.locator('#kcal').inner_text()=='—'
+ assert page.locator('[data-agent]').count()==0
+ page.locator('#agentFocus').uncheck();assert 'Human route unavailable' in page.locator('#agentAvailability').inner_text()
+ page.locator('#agentFocus').check();assert 'Horse route unavailable' in page.locator('#agentAvailability').inner_text()
+ assert page.locator('#export').is_disabled()
+ # Return to a shared route and check the switch preserves elapsed time.
+ page.locator('#import').set_input_files({'name':'shared-route.json','mimeType':'application/json','buffer':snapshot.encode()})
+ page.wait_for_function("document.querySelector('#warnings').textContent.includes('Terrain ascent:')")
  page.locator('#scrubber').evaluate("e=>{e.value=300;e.dispatchEvent(new Event('input'))}")
  elapsed=page.locator('#clock').inner_text()
- page.locator('#agentFocus').check()
- assert page.locator('#agentFocus').is_checked() and page.locator('#agentFocus').is_enabled()
- assert page.locator('#clock').inner_text()==elapsed
- assert page.locator('#agentAvailability').is_visible()
- assert 'purple dashed horse network' in page.locator('#agentAvailability').inner_text()
- assert page.locator('#kcal').inner_text()=='—'
- assert page.locator('#cumulativeOverlay').count()==0
- assert page.locator('#export').is_disabled()
- page.locator('#play').click();page.wait_for_timeout(300);page.locator('#play').click()
- assert page.locator('#clock').inner_text()!=elapsed
- assert page.locator('[data-agent=human]').count()==1
- page.locator('.timeline').screenshot(path='/tmp/agent-toggle-unavailable.png')
- page.locator('#agentFocus').focus();page.locator('#agentFocus').press('Space')
- assert not page.locator('#agentFocus').is_checked()
- assert page.locator('#agentAvailability').is_hidden()
- assert page.locator('#cumulativeOverlay').count()==1
- assert page.locator('#kcal').inner_text()!='—'
+ page.locator('#agentFocus').uncheck();assert page.locator('#clock').inner_text()==elapsed
+ page.locator('#agentFocus').check();assert page.locator('#clock').inner_text()==elapsed
+ page.locator('.map-panel').screenshot(path='/tmp/shared-route-agents.png')
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors
- print('PASS: human/horse icons, independent routes, speeds and metabolism, pause, reset, scrub, focus switch, horse-only routing and missing horse network; English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
+ print('PASS: human/horse icons, shared route geometry, separate speeds and unchanged metabolism, pause, reset, scrub, focus switch, route sharing despite horse tags and unavailable shared routes; English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
  b.close()

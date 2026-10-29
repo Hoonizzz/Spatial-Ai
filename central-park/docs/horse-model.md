@@ -6,9 +6,9 @@ This is an explicitly uncalibrated, editable mechanistic planning scenario. It i
 
 ## Routes and time
 
-Use OSM `horse=yes/designated/permissive` or `highway=bridleway` unless prohibited. Reject explicit horse/access bans, stairs, construction/motorways, unresolved conditional rules, and barriers without explicit horse permission. Respect mapped `oneway:horse` and explicit horse turn restrictions. Do not infer horse access from bicycle access. Endpoints must snap within 50 m of the horse graph; projected connectors are not included or verified. No cross-network teleportation or fallback to the human route. Permission tags are map evidence, not a guarantee of current legal access.
+The horse copies the exact selected human journey's walking and riding edges, including fractional endpoints, direction and elevation grades. No separate horse-permission graph or bridleway detour is selected. This is a shared-route simulation; the geometry does not establish real equestrian access. If there is no human journey, the horse reports `NO_SHARED_HUMAN_ROUTE` rather than inventing one.
 
-Dijkstra minimizes `sum(horizontal distance * max(1, 18 * abs(grade)))`. Each segment takes `seconds = distance / (base km/h / 3.6) * slopeWeight`. Segments split at fractional start/end positions retain proportional distance, grade, time and metabolic work. Unknown terrain stays explicitly labeled; uphill energy cannot be estimated for those segments. Terrain heights have DEM resolution limits, particularly at bridges and tunnels.
+The horse retains the same slope-weighted cost `sum(horizontal distance * max(1, 18 * abs(grade)))`. Each segment takes `seconds = distance / (base km/h / 3.6) * slopeWeight`. Segments split at fractional start/end positions retain proportional distance, grade, time and metabolic work. Unknown terrain stays explicitly labeled; uphill energy cannot be estimated for those segments. Terrain heights have DEM resolution limits, particularly at bridges and tunnels.
 
 ## Segment metabolism
 
@@ -29,6 +29,4 @@ No rider/cargo mass, gait transitions, fatigue, thermoregulation, terrain-specif
 
 Human/Horse result selection updates gross energy, component breakdown, travel distance/time, route elevation and cumulative chart. Horse USD/rental results are N/A. Map agents independently interpolate their own sequences under the shared elapsed clock and remain at their destination after arrival. The selected agent and complete human/horse results are included in exported result JSON, settings in snapshots, and the selected agent’s energy in CSV (horse monetary cells are empty).
 
-Tests check dimensional arithmetic, mass/speed responses, slope/uphill/downhill behavior, explicit access and barriers, direction, fractional edges, absent horse networks, independent route/time, and worker/UI behavior. Browser fixtures are synthetic and are not evidence of actual Central Park horse-network connectivity or calibrated metabolism.
-
-OSM tag definitions for later source review: https://wiki.openstreetmap.org/wiki/Key:horse and https://wiki.openstreetmap.org/wiki/Tag:highway%3Dbridleway . These describe data semantics, not metabolic evidence.
+Tests check dimensional arithmetic, mass/speed responses, slope/uphill/downhill behavior, exact walking/riding geometry, fractional edges, nonmutation of the human result, unavailable shared routes, independent time, and worker/UI behavior. Browser fixtures are synthetic and are not evidence of actual Central Park horse-network connectivity or calibrated metabolism.
