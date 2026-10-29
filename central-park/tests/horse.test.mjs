@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {horseJourney,horseEdgeEnergy,horseSettings} from '../dist/horse.js';
+import {horseFare,horseJourney,horseEdgeEnergy,horseSettings} from '../dist/horse.js';
 import {makeArea,journey,buildGraph} from '../dist/engine.js';
 import {exampleData} from '../dist/example.js';
 test('horse oxygen/work units: 1 km level, rest versus active, no human MET',()=>{
@@ -32,4 +32,19 @@ test('horse shares all human walking/riding edges without mutating the human rou
 test('horse cannot fabricate a route when the shared human route is missing',()=>{
  assert.throws(()=>horseJourney(null),/NO_SHARED_HUMAN_ROUTE/);
  const zero=horseJourney({length:0,legs:[]});assert.equal(zero.totalSeconds,0);assert.equal(zero.kcal,0);assert.equal(zero.fare,null);
+});
+
+test('entered carriage tariff rounds extra time units, keeps provenance and never invents a market rate',()=>{
+ assert.equal(horseFare(3600),null);
+ const q={ridePrice:100,rideMinutes:60,extraPrice:25,extraMinutes:10,fareSource:'Controlled test quote'};
+ assert.equal(horseFare(3601,{...q,extraPrice:null}),null);assert.equal(horseFare(1,q).price_basis,'per_carriage');assert.equal(horseFare(0,q).total,0);assert.equal(horseFare(60,q).total,10000);
+ assert.equal(horseFare(3600,q).total,10000);assert.equal(horseFare(3600.1,q).total,12500);
+ assert.equal(horseFare(3600,q).source,q.fareSource);assert.equal(horseFare(3600,q).market_verified,false);
+ assert.equal(horseFare(1801,{...q,ridePrice:75,rideMinutes:30}).total,10000);
+ assert.throws(()=>horseFare(-1,q),/INVALID_DURATION/);
+ assert.throws(()=>horseFare(1,{ridePrice:-10}),/INVALID_HORSE_FARE/);
+ const human={length:1000,legs:[{length:1000,path:[{length:1000,grade:0,slopeWeight:1}]}]};
+ const plain=horseJourney(human),priced=horseJourney(human,q);
+ assert.deepEqual(plain.energy,priced.energy);assert.equal(plain.weightedDistance,priced.weightedDistance);
+ assert.equal(priced.fare.total,10000);
 });

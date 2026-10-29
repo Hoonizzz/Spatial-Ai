@@ -118,6 +118,34 @@ with sync_playwright() as p:
  page.locator('#agentFocus').uncheck();assert page.locator('#clock').inner_text()==elapsed
  page.locator('#agentFocus').check();assert page.locator('#clock').inner_text()==elapsed
  page.locator('.map-panel').screenshot(path='/tmp/shared-route-agents.png')
+ # Controlled quote fixture: not a claim about Central Park market prices.
+ page.locator('#horseSettings').evaluate('e=>e.open=true')
+ page.locator('#horseRidePrice').fill('100')
+ page.locator('#horseRideMinutes').fill('60')
+ page.locator('#horseExtraPrice').fill('25')
+ page.locator('#horseExtraMinutes').fill('10')
+ page.locator('#horseFareSource').fill('Controlled test quote')
+ page.locator('#calculate').click()
+ page.wait_for_function("!document.querySelector('#calculate').disabled")
+ assert page.locator('#usd').inner_text()!='N/A'
+ assert page.locator('[data-metric=usd]').is_enabled()
+ assert 'per carriage' in page.locator('#fareDetail').inner_text()
+ assert 'Controlled test quote' in page.locator('#warnings').inner_text()
+ page.locator('[data-metric=usd]').click()
+ page.locator('#scrubber').evaluate("e=>{e.value=1000;e.dispatchEvent(new Event('input'))}")
+ assert page.locator('#currentCost').inner_text()=='Cumulative $'+page.locator('#usd').inner_text()+' USD'
+ with page.expect_download() as download:
+  page.locator('#export').click()
+ with zipfile.ZipFile(download.value.path()) as z:
+  output=json.loads(z.read('result.json'))
+  assert output['result']['horse']['fare']['source']=='Controlled test quote'
+  assert output['result']['horse']['fare']['market_verified'] is False
+  assert not z.read('cumulative.csv').decode().splitlines()[-1].endswith(',')
+  assert json.loads(z.read('snapshot.json'))['settings']['horse']['ridePrice']==100
+ page.locator('#horseRidePrice').fill('');page.locator('#calculate').click()
+ page.wait_for_function("!document.querySelector('#calculate').disabled")
+ assert page.locator('#usd').inner_text()=='N/A'
+ assert page.locator('[data-metric=usd]').is_disabled()
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors
