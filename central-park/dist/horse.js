@@ -1,5 +1,5 @@
 import {slopeSeconds} from './engine.js';
-export const HORSE_DEFAULTS={mass:500,speed:6,restO2:3,costO2:.1,efficiency:.25,ridePrice:null,rideMinutes:20,extraPrice:null,extraMinutes:10,fareSource:''};
+export const HORSE_DEFAULTS={mass:500,speed:6,restO2:3,costO2:.1,efficiency:.25,ridePrice:72,rideMinutes:20,extraPrice:72,extraMinutes:20,fareSource:'User-provided tariff: USD 72 per 20 minutes per carriage'};
 export function horseSettings(values={}){
  const opt={...HORSE_DEFAULTS,...values};
  for(const [name,min,max] of [['mass',100,1200],['speed',2,12],['restO2',1,10],['costO2',.01,1],['efficiency',.1,.4]])if(!Number.isFinite(opt[name])||opt[name]<min||opt[name]>max)throw new Error('INVALID_HORSE_SETTINGS');
@@ -11,7 +11,7 @@ export function horseSettings(values={}){
  return opt;
 }
 // Entered carriage tariff: base period plus started additional time units.
-// No current NYC/operator rate is supplied without a verified quote.
+// Default tariff was provided by the user; independent market verification is not claimed.
 export function horseFare(seconds,values={}){
  const o=horseSettings(values);if(!Number.isFinite(seconds)||seconds<0)throw new Error('INVALID_DURATION');
  if(o.ridePrice===null)return null;

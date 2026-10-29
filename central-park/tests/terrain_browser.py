@@ -38,9 +38,9 @@ with sync_playwright() as p:
  assert positions()[0]==atArrival
  humanKcal=page.locator('#kcal').inner_text()
  page.locator('#agentFocus').check()
- assert page.locator('#usd').inner_text()=='N/A'
+ assert float(page.locator('#usd').inner_text())>=72
  assert page.locator('#kcal').inner_text()!=humanKcal
- assert page.locator('[data-metric=usd]').is_disabled()
+ assert page.locator('[data-metric=usd]').is_enabled()
  assert 'not calibrated' in page.locator('#kcalRange').inner_text()
  assert page.locator('[data-route-agent=horse]').count()>0
  page.locator('#agentFocus').uncheck()
@@ -78,8 +78,10 @@ with sync_playwright() as p:
  import zipfile,json
  with zipfile.ZipFile(download.value.path()) as z:
   output=json.loads(z.read('result.json'));assert output['selected_agent']=='horse'
-  assert output['result']['horse']['fare'] is None and output['result']['horse']['model']['calibrated'] is False
-  csv=z.read('cumulative.csv').decode();assert csv.splitlines()[-1].endswith(',')
+  assert output['result']['horse']['fare']['base_price']==7200 and output['result']['horse']['model']['calibrated'] is False
+  assert output['result']['horse']['fare']['extra_minutes']==20
+  assert 'User-provided' in output['result']['horse']['fare']['source']
+  csv=z.read('cumulative.csv').decode();assert not csv.splitlines()[-1].endswith(',')
   assert json.loads(z.read('snapshot.json'))['settings']['horse']['mass']==500
  page.locator('#horseSettings').evaluate("e=>e.open=true")
  page.locator('#horseSpeed').fill('3');page.locator('#horseSpeed').press('Tab')
@@ -100,7 +102,7 @@ with sync_playwright() as p:
  assert page.locator('#agentAvailability').is_hidden()
  assert page.locator('#agentFocus').is_checked()
  assert 'shared human route' in page.locator('#stationDetail').inner_text()
- assert page.locator('#usd').inner_text()=='N/A'
+ assert float(page.locator('#usd').inner_text())>=72
  # Missing shared routes remain honestly unavailable and the toggle still works.
  missing=json.loads(snapshot);missing['stations']=[]
  page.locator('#import').set_input_files({'name':'missing-shared-route.json','mimeType':'application/json','buffer':json.dumps(missing).encode()})
