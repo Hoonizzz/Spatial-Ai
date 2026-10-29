@@ -1,0 +1,1 @@
+{"name":"central-park-cost-distance","private":true,"type":"module","scripts":{"test":"node --test tests/*.test.mjs","dev":"node server.mjs","check":"node --check dist/app.js && node --check dist/engine.js && node --check dist/data.js"}}
