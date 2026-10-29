@@ -17,3 +17,27 @@ test('GBFS does not infer ebikes from classic/total count',()=>{const info={data
 test('end-to-end example evaluates all eligible station pairs',()=>{const d=exampleData(),g=buildGraph(d.raw,makeArea(d.geometry)),r=journey(g,d.a,d.b,d.stations);assert.ok(r.shortest.length>0);assert.ok(r.shortest.fare.total>=499);assert.equal(r.shortest.legs.length,3);assert.ok(r.cheapest.fare.total<=r.shortest.fare.total);assert.equal(r.shortest.legs[0].mode,'walk');assert.equal(r.shortest.legs[2].mode,'walk');assert.ok(r.shortest.start.ebikes>0);assert.ok(r.shortest.end.docks>0);assert.equal(r.candidates,2);});
 test('same A/B creates no hire; unavailable fleet returns explicit failure',()=>{const d=exampleData(),g=buildGraph(d.raw,makeArea(d.geometry));assert.equal(journey(g,d.a,d.a,d.stations).shortest.fare.total,0);assert.throws(()=>journey(g,d.a,d.b,d.stations.map(s=>({...s,ebikes:0}))),/NO_EBIKE/);assert.throws(()=>journey(g,d.a,d.b,d.stations,{speed:-10}),/INVALID_SETTINGS/);});
 test('ZIP contains valid local and central headers',async()=>{const zip=new Uint8Array(await zipFiles({'result.json':{a:1},'test.csv':'a,b\n1,2'}).arrayBuffer()),view=new DataView(zip.buffer);assert.equal(view.getUint32(0,true),0x04034b50);assert.equal(view.getUint32(zip.length-22,true),0x06054b50);assert.equal(view.getUint16(zip.length-12,true),2);});
+
+// Terrain routing regressions: compare complete and fractional edges.
+import {gradeWeight,slopeSeconds} from '../dist/engine.js';
+import {decodeHeight,tilePoint} from '../dist/terrain.js';
+test('grade threshold is continuous and proportional in both directions',()=>{
+ assert.equal(gradeWeight(0),1);assert.equal(gradeWeight(1/18),1);
+ assert.equal(gradeWeight(1/9),2);assert.equal(gradeWeight(-1/9),2);
+ assert.equal(decodeHeight(128,30,128),30.5);
+ const t=tilePoint(-73.97,40.78);assert.ok(t.px>=0&&t.px<256&&t.py>=0&&t.py<256);
+});
+test('terrain weights select a longer gentle route without falsifying distance',()=>{
+ const g=graph();g.add(1,2,10,100).slopeWeight=3;g.add(2,3,20,100).slopeWeight=3;
+ g.add(1,4,30,140);g.add(4,3,40,140);
+ const r=search(g,[0,0],'ride','length').end([200,0]);assert.equal(r.length,280);assert.equal(r.cost,280);
+ const direct=graph();direct.add(1,2,10,100).slopeWeight=2;
+ const partial=search(direct,[20,0],'ride','length').end([70,0]);
+ assert.ok(Math.abs(partial.length-50)<1e-8);assert.ok(Math.abs(partial.cost-100)<1e-8);assert.ok(Math.abs(partial.seconds-24)<1e-8);
+});
+test('real park topology admits designated internal bike paths but excludes foot-only riding',()=>{
+ const raw={elements:[{type:'node',id:1,lon:-73.97,lat:40.78,tags:{ele:10}},{type:'node',id:2,lon:-73.969,lat:40.78,tags:{ele:30}},{type:'way',id:10,nodes:[1,2],tags:{highway:'path',bicycle:'designated'}}]};
+ const area={contains:()=>true,park:()=>true};let g=buildGraph(raw,area);
+ assert.ok(g.edges.some(e=>e.mode==='ride'));const e=g.edges.find(e=>e.mode==='ride');assert.ok(e.grade>1/18);assert.ok(e.slopeWeight>1);assert.equal(slopeSeconds(e,15),e.length/(15/3.6)*e.slopeWeight);
+ raw.elements[2].tags.bicycle='no';g=buildGraph(raw,area);assert.ok(g.edges.every(e=>e.mode==='walk'));assert.equal(g.edges.length,2);
+});
