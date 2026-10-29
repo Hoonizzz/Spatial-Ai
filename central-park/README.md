@@ -42,3 +42,7 @@ Internal cycleways and OSM bicycle=yes/designated/permissive park paths are elig
 Live browser destinations: data.cityofnewyork.us, overpass-api.de (or overpass.kumi.systems), gbfs.citibikenyc.com and its advertised feed hosts, s3.amazonaws.com/elevation-tiles-prod. Local automated tests use controlled terrain fixtures; production data access must be verified separately when the environment network blocks these services.
 
 Validation: `npm test` now executes 19 tests. With the repository served at port 8000 and Python Playwright/Chromium installed, run `python3 central-park/tests/terrain_browser.py` from the repository root. The browser test uses controlled DEM fixtures, including snapshot routing and elevation profile, not live terrain data.
+
+## Human and horse agents
+
+The map animates two screen-sized SVG icons: a green human and a brown horse. They share the selected route and playback clock; their badges are offset around a common geographic anchor so neither hides the other. Play, pause, scrub, replay and reset control both. Their leg animation respects reduced-motion preferences. This adds a visual horse companion, not horse-specific routing, speed, access rules or energy calculations; existing human e-bike energy/fare results remain the basis of the chart.

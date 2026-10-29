@@ -13,8 +13,21 @@ with sync_playwright() as p:
  import re
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  assert 'slope is not evaluated' in page.locator('#warnings').inner_text()
+ assert page.locator('[data-agent=human]').count()==1
+ assert page.locator('[data-agent=horse]').count()==1
+ positions=lambda:page.locator('#mapTraveler').evaluate("e=>Array.from(e.children).map(n=>[n.dataset.agent,n.dataset.x,n.dataset.y])")
+ initial=positions()
  page.locator('#play').click();page.wait_for_timeout(500)
+ assert positions()!=initial
+ assert page.locator('#mapTraveler .is-moving').count()==2
  page.locator('#play').click()
+ paused=positions();page.wait_for_timeout(200);assert positions()==paused
+ assert page.locator('#mapTraveler .is-moving').count()==0
+ page.locator('#reset').click();assert positions()==initial
+ page.locator('#scrubber').evaluate("e=>{e.value=500;e.dispatchEvent(new Event('input'))}")
+ moved=positions();assert moved!=initial and moved[0][1:]==moved[1][1:]
+ page.locator('.map-panel').screenshot(path='/tmp/central-park-agents.png')
+ page.locator('#reset').click()
  page.locator('#aboutButton').click();assert '1:18' in page.locator('#about').inner_text();page.locator('#closeAbout').click()
  page.route('https://s3.amazonaws.com/**',lambda r:r.fulfill(status=200,content_type='image/png',body=png,headers={'Access-Control-Allow-Origin':'*'}))
  result=page.evaluate('''async()=>{const {loadTerrain}=await import('./terrain.js');const raw={elements:[{type:'node',id:1,lon:-73.97,lat:40.78},{type:'node',id:2,lon:-73.968,lat:40.78},{type:'way',id:10,nodes:[1,2],tags:{highway:'cycleway'}}]};const d=await loadTerrain(raw);return {nodes:d.elements.filter(n=>n.type==='node').map(n=>n.tags?.ele),original:raw.elements.length,terrain:d.terrain};}''')
@@ -41,5 +54,5 @@ with sync_playwright() as p:
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors
- print('PASS: English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
+ print('PASS: human/horse icons, shared movement, pause, reset and scrub; English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
  b.close()
