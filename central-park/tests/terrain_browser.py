@@ -25,8 +25,25 @@ with sync_playwright() as p:
  assert page.locator('#mapTraveler .is-moving').count()==0
  page.locator('#reset').click();assert positions()==initial
  page.locator('#scrubber').evaluate("e=>{e.value=500;e.dispatchEvent(new Event('input'))}")
- moved=positions();assert moved!=initial and moved[0][1:]==moved[1][1:]
- page.locator('.map-panel').screenshot(path='/tmp/central-park-agents.png')
+ moved=positions();assert moved!=initial and moved[0][1:]!=moved[1][1:]
+ assert page.locator('[data-agent=human] circle').count()>0
+ assert page.locator('[data-agent=horse] rect').count()==1
+ assert page.locator('[data-agent=human] text').text_content()=='HUMAN'
+ assert page.locator('[data-agent=horse] text').text_content()=='HORSE'
+ page.locator('.map-panel').screenshot(path='/tmp/central-park-agents-independent.png')
+ page.locator('#scrubber').evaluate("e=>{e.value=750;e.dispatchEvent(new Event('input'))}")
+ assert page.locator('#agentStatus').inner_text().count('Arrived')==1
+ atArrival=positions()[0]
+ page.locator('#scrubber').evaluate("e=>{e.value=850;e.dispatchEvent(new Event('input'))}")
+ assert positions()[0]==atArrival
+ humanKcal=page.locator('#kcal').inner_text()
+ page.locator('#agentFocus').select_option('horse')
+ assert page.locator('#usd').inner_text()=='N/A'
+ assert page.locator('#kcal').inner_text()!=humanKcal
+ assert page.locator('[data-metric=usd]').is_disabled()
+ assert 'not calibrated' in page.locator('#kcalRange').inner_text()
+ assert page.locator('[data-route-agent=horse]').count()>0
+ page.locator('#agentFocus').select_option('human')
  page.locator('#reset').click()
  page.locator('#aboutButton').click();assert '1:18' in page.locator('#about').inner_text();page.locator('#closeAbout').click()
  page.route('https://s3.amazonaws.com/**',lambda r:r.fulfill(status=200,content_type='image/png',body=png,headers={'Access-Control-Allow-Origin':'*'}))
@@ -51,8 +68,39 @@ with sync_playwright() as p:
  assert 'Fare (USD)' in page.locator('#chart').text_content()
  page.locator('[data-metric=kcal]').click()
  page.locator('.timeline').screenshot(path='/tmp/central-park-overlap.png')
+ # Horse-specific results and export must work independently of Citi Bike stations.
+ page.locator('#agentFocus').select_option('horse')
+ page.locator('#scrubber').evaluate("e=>{e.value=1000;e.dispatchEvent(new Event('input'))}")
+ assert 'Horse:' in page.locator('#agentStatus').inner_text() and page.locator('#agentStatus').inner_text().count('Arrived')==2
+ assert page.locator('#currentCost').inner_text()=='Cumulative '+page.locator('#kcal').inner_text()+' kcal'
+ with page.expect_download() as download:
+  page.locator('#export').click()
+ import zipfile,json
+ with zipfile.ZipFile(download.value.path()) as z:
+  output=json.loads(z.read('result.json'));assert output['selected_agent']=='horse'
+  assert output['result']['horse']['fare'] is None and output['result']['horse']['model']['calibrated'] is False
+  csv=z.read('cumulative.csv').decode();assert csv.splitlines()[-1].endswith(',')
+  assert json.loads(z.read('snapshot.json'))['settings']['horse']['mass']==500
+ page.locator('#horseSettings').evaluate("e=>e.open=true")
+ page.locator('#horseSpeed').fill('3');page.locator('#horseSpeed').dispatch_event('change')
+ page.wait_for_function("document.querySelector('#warnings').textContent.includes('Terrain ascent:')")
+ page.locator('#agentFocus').select_option('horse')
+ assert 'base speed 3 km/h' in page.locator('#stationDetail').inner_text()
+ import json
+ horseOnly=json.loads(snapshot);horseOnly['stations']=[]
+ page.locator('#import').set_input_files({'name':'horse-only.json','mimeType':'application/json','buffer':json.dumps(horseOnly).encode()})
+ page.wait_for_function("document.querySelector('#warnings').textContent.includes('Human:')")
+ assert page.locator('[data-agent=horse]').count()==1 and page.locator('[data-agent=human]').count()==0
+ assert page.locator('#usd').inner_text()=='N/A'
+ # A horse access failure must not make the human use the horse's road network.
+ noHorse=json.loads(snapshot)
+ for e in noHorse['raw']['elements']:
+  if e['type']=='way':e['tags']['horse']='no'
+ page.locator('#import').set_input_files({'name':'no-horse.json','mimeType':'application/json','buffer':json.dumps(noHorse).encode()})
+ page.wait_for_function("document.querySelector('#warnings').textContent.includes('No mapped horse-permitted network')")
+ assert page.locator('[data-agent=human]').count()==1 and page.locator('[data-agent=horse]').count()==0
  assert not re.search('[가-힣]',page.locator('body').inner_text())
  page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors
- print('PASS: human/horse icons, shared movement, pause, reset and scrub; English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
+ print('PASS: human/horse icons, independent routes, speeds and metabolism, pause, reset, scrub, focus switch, horse-only routing and missing horse network; English UI, example routing, missing-terrain disclosure, playback, model explanation, mobile, overlaid time-aligned terrain/energy, shared scrubber, fare toggle; PNG terrain decoding, 30 m densification, nonmutating enrichment with controlled DEM fixture')
  b.close()

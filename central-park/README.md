@@ -43,6 +43,10 @@ Live browser destinations: data.cityofnewyork.us, overpass-api.de (or overpass.k
 
 Validation: `npm test` now executes 19 tests. With the repository served at port 8000 and Python Playwright/Chromium installed, run `python3 central-park/tests/terrain_browser.py` from the repository root. The browser test uses controlled DEM fixtures, including snapshot routing and elevation profile, not live terrain data.
 
-## Human and horse agents
+## Independent human and horse agents
 
-The map animates two screen-sized SVG icons: a green human and a brown horse. They share the selected route and playback clock; their badges are offset around a common geographic anchor so neither hides the other. Play, pause, scrub, replay and reset control both. Their leg animation respects reduced-motion preferences. This adds a visual horse companion, not horse-specific routing, speed, access rules or energy calculations; existing human e-bike energy/fare results remain the basis of the chart.
+The blue circle/person labeled **HUMAN** and purple square/horse labeled **HORSE** use independent routes, speeds, positions and energy estimates. Both depart at elapsed time zero; the playback ends at the later arrival. Pause/scrub/reset apply to both. An arrived agent remains at its own destination. Switching **Chart and results** selects each agent’s energy and elevation without resetting the shared time. Horse fares are N/A, and human Citi Bike calculations retain their original model.
+
+The horse defaults to **500 kg, 6 km/h**. Horse settings expose mass, base speed, resting oxygen, oxygen transport cost and uphill efficiency. Mapped horse-permitted paths are previewed with purple dashed lines. Move A and B near this network; no horse route is invented when OSM access is missing. A horse route can work independently of missing bike stations, and human routes can work when horse access is unavailable.
+
+See [Horse model](docs/horse-model.md) for units, formulas, assumptions and validation limits. Current engine tests: **23**. Browser tests cover independent positions, distinct badge shapes/labels, speed changes, arrival, focus switching, horse-only routing and unavailable equestrian networks, in addition to terrain/energy overlays.
