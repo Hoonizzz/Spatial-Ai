@@ -1,6 +1,6 @@
 # Spatial-Ai · Central Park
 
-GitHub Pages 첫 화면은 [센트럴파크 비용·거리 시뮬레이션](central-park/dist/)으로 연결됩니다. 기존 [SoHo 3D 지도](soho.html)도 보존했습니다.
+GitHub Pages 첫 화면에서 [Office Hierarchy 사무실 시뮬레이션](office-hierarchy-sim/dist/)과 [센트럴파크 비용·거리 시뮬레이션](central-park/dist/)을 선택할 수 있습니다. 기존 [SoHo 3D 지도](soho.html)도 보존했습니다.
 
 정적 배포 파일은 `central-park/dist/`에 있으며, 외부 패키지나 서버 API 없이 GitHub Pages에서 실행됩니다. 실제 데이터 연결에는 외부 NYC Parks·OpenStreetMap·Citi Bike 서비스가 필요합니다. 연결이 어려우면 앱의 **예제로 살펴보기**로 합성 데이터 기능을 확인할 수 있습니다.
 
