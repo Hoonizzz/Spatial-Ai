@@ -11,6 +11,8 @@ npm test
 npm run check
 ```
 
+새로운 [Office Hierarchy 사무실 시뮬레이션](office-hierarchy-sim/dist/)은 22명의 직급별 시야·접근·위장·회피와 화장실 예약을 모델링합니다. [설치·모델·검증 안내](office-hierarchy-sim/README.md).
+
 상세 안내: [Central Park README](central-park/README.md).
 
 ---
