@@ -1,7 +1,7 @@
 import type { Config, Role, State, Room } from './types';
 export const DT = .05;
 export const ROLES: Role[] = ['CEO', 'LEAD', 'ASSOCIATE', 'JUNIOR'];
-export const STATES: State[] = ['WANDER','PHONE','APPROACH','PRETEND_WORK','FLEE_TO_WC','FLEE_IN_OFFICE','WC_HIDE','COOLDOWN'];
+export const STATES: State[] = ['WANDER','PHONE','APPROACH','PRETEND_WORK','FLEE_TO_WC','FLEE_IN_OFFICE','WC_HIDE','FLEE_TO_ROOM','ROOM_HIDE','COOLDOWN'];
 export const ROOMS: Room[] = ['WORK','MEETING','LOUNGE','WC','CORRIDOR'];
 export const ROLE = {
   CEO: { rank: 4, count: 1, base: 1, approach: 2, flee: 2, color: '#ac4b32', label: 'CEO' },
@@ -9,7 +9,7 @@ export const ROLE = {
   ASSOCIATE: { rank: 2, count: 6, base: 2, approach: 3, flee: 4, color: '#286d78', label: 'Associate' },
   JUNIOR: { rank: 1, count: 12, base: 3, approach: 3, flee: 5, color: '#6653a3', label: 'Junior' }
 };
-export const defaults = (): Config => ({ seed: 42, fov: 110, radii: { CEO:3, LEAD:5, ASSOCIATE:7, JUNIOR:9 }, pretendProbability:.45, wcCapacity:4, avoidanceDuration:2, pursuitDuration:8, speedMultiplier:1, desksBlockSight:false, openVisibility:false, closeReevaluate:false });
+export const defaults = (): Config => ({ seed: 42, fov: 110, radii: { CEO:3, LEAD:5, ASSOCIATE:7, JUNIOR:9 }, pretendProbability:.45, wcCapacity:4, avoidanceDuration:2, pursuitDuration:8, speedMultiplier:1, desksBlockSight:false, openVisibility:false, closeReevaluate:false, wcEscapeProbability:.25 });
 export const SCENARIOS = ['Baseline','Equal vision','Strong hierarchy','No WC escape','High visibility'];
 export function scenarioConfig(index: number, base = defaults()): Config {
   const c = structuredClone(base);

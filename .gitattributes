@@ -1,0 +1,2 @@
+# Generated Three.js bundles embed upstream GLSL strings with intentional whitespace.
+office-hierarchy-sim/dist/assets/three-*.js -whitespace

@@ -2,13 +2,19 @@ import type { Point, Room } from '../types';
 import { GRID, WIDTH, HEIGHT, walkable, clearMove, roomAt } from './floorplan';
 import { distance } from '../config';
 export class Navigation {
-  points: Point[]=[]; neighbors: Array<Array<[number,number]>>=[]; roomPoints: Record<Room,Point[]>={WORK:[],MEETING:[],LOUNGE:[],WC:[],CORRIDOR:[]};
+  lookup=new Map<string,number>(); points: Point[]=[]; neighbors: Array<Array<[number,number]>>=[]; roomPoints: Record<Room,Point[]>={WORK:[],MEETING:[],LOUNGE:[],WC:[],CORRIDOR:[]};
   constructor() {
-    const nx=WIDTH/GRID,ny=HEIGHT/GRID,lookup=new Map<string,number>();
+    const nx=WIDTH/GRID,ny=HEIGHT/GRID,lookup=this.lookup;
     for(let y=0;y<ny;y++)for(let x=0;x<nx;x++) { const p={x:(x+.5)*GRID,y:(y+.5)*GRID}; if(walkable(p)){lookup.set(`${x},${y}`,this.points.length);this.points.push(p);this.roomPoints[roomAt(p)].push(p);} }
     this.neighbors=this.points.map(p=>{const out:Array<[number,number]>=[],x=Math.floor(p.x/GRID),y=Math.floor(p.y/GRID);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const n=lookup.get(`${x+dx},${y+dy}`);if(n!==undefined&&clearMove(p,this.points[n]))out.push([n,Math.hypot(dx,dy)*GRID]);}return out;});
   }
-  nearest(p:Point,allowWC=true) { let best=-1,d=Infinity;for(let i=0;i<this.points.length;i++){const q=this.points[i];if(!allowWC&&roomAt(q)==='WC')continue;const v=distance(p,q);if(v<d&&clearMove(p,q,allowWC)){best=i;d=v;}}return best; }
+  nearest(p:Point,allowWC=true) {
+    let best=-1,d=Infinity;const x=Math.floor(p.x/GRID),y=Math.floor(p.y/GRID);
+    const consider=(i:number)=>{const q=this.points[i];if(!allowWC&&roomAt(q)==='WC')return;const v=distance(p,q);if(v<d&&clearMove(p,q,allowWC)){best=i;d=v;}};
+    for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const i=this.lookup.get(`${x+dx},${y+dy}`);if(i!==undefined)consider(i);}
+    if(d<=2.5*GRID)return best;
+    for(let i=0;i<this.points.length;i++)consider(i);return best;
+  }
   find(a:Point,b:Point,allowWC=false): Point[] {
     const s=this.nearest(a,allowWC),t=this.nearest(b,allowWC);if(s<0||t<0)return [];
     const cost=new Float64Array(this.points.length).fill(Infinity),parent=new Int32Array(this.points.length).fill(-1),closed=new Uint8Array(this.points.length);

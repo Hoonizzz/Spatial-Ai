@@ -3,7 +3,7 @@
 GitHub Pages 메인 주소에서 **Office Hierarchy 사무실 시뮬레이션이 바로 실행됩니다.**
 
 - 메인 페이지: https://hoonizzz.github.io/Spatial-Ai/
-- 22명 에이전트의 직급별 시야·접근·위장·회피, 화장실 예약 및 시나리오 비교
+- 616㎡ 사무실의 22명 블록형 3D 에이전트, 전체 시야 표시, 화장실·회의실·라운지 회피, 랜덤 재배치 및 시나리오 비교
 - [설치·모델·검증 안내](office-hierarchy-sim/README.md)
 - [원본 구현 명세](office-hierarchy-sim/docs/SIMULATION_SPEC.md)
 

@@ -4,7 +4,7 @@ import { clearMove, roomAt } from '../world/floorplan';
 export function desiredPosition(a:Agent,agents:Agent[],dt:number,multiplier:number):Point {
   const allowWC=roomAt(a)==='WC'||a.state==='FLEE_TO_WC'||a.state==='WC_HIDE';
   while(a.path.length&&distance(a,a.path[0])<.08)a.path.shift();
-  if(!a.path.length||a.state==='WC_HIDE'||((a.state==='COOLDOWN'||a.state==='PHONE')&&a.until>0))return {x:a.x,y:a.y};
+  if(!a.path.length||(a.state==='WC_HIDE'||a.state==='ROOM_HIDE')||((a.state==='COOLDOWN'||a.state==='PHONE')&&a.until>0))return {x:a.x,y:a.y};
   const target=a.path[0],d=distance(a,target),step=Math.min(d,a.speedLevel*.5*multiplier*dt);
   const ux=(target.x-a.x)/d,uy=(target.y-a.y)/d;let vx=ux,vy=uy;
   for(const b of agents){if(a.id===b.id)continue;const gap=distance(a,b);if(gap<1.1&&gap>.001){const force=Math.max(0,(.9-gap)/.3)*.6;vx+=(a.x-b.x)/gap*force;vy+=(a.y-b.y)/gap*force;
