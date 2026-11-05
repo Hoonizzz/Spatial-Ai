@@ -1,6 +1,6 @@
 # Office Hierarchy · Spatial Lab
 
-A standalone, English-language Canvas 2D simulation of 22 fictional office agents. Existing Central Park and SoHo applications stay available. The source specification is preserved in [docs/SIMULATION_SPEC.md](docs/SIMULATION_SPEC.md); this document describes the implemented model and interpretation choices.
+An English-language Canvas 2D simulation of 22 fictional office agents, served directly as the repository's main GitHub Pages application. The source specification is preserved in [docs/SIMULATION_SPEC.md](docs/SIMULATION_SPEC.md); this document describes the implemented model and interpretation choices.
 
 ## Open or develop
 
@@ -21,7 +21,7 @@ npm test
 npm run build
 ```
 
-Commit the rebuilt `dist/` when changing source. Vite uses relative assets, including the comparison worker, so `/Spatial-Ai/office-hierarchy-sim/dist/` works with branch-based GitHub Pages. The Central Park introduction links to this page. `npm run build` runs strict TypeScript checking before bundling.
+Commit the rebuilt `dist/` and repository-root `index.html` when changing source. `npm run build` runs strict TypeScript checking, bundles the application, then generates the homepage with adjusted asset and specification links. Both `/Spatial-Ai/` and `/Spatial-Ai/office-hierarchy-sim/dist/` run the same app, including its comparison worker. The homepage shows the simulation directly, without a launcher or redirect.
 
 ## Implemented model
 

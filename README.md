@@ -1,19 +1,22 @@
-# Spatial-Ai · Central Park
+# Spatial-Ai · Office Hierarchy
 
-GitHub Pages 첫 화면에서 [Office Hierarchy 사무실 시뮬레이션](office-hierarchy-sim/dist/)과 [센트럴파크 비용·거리 시뮬레이션](central-park/dist/)을 선택할 수 있습니다. 기존 [SoHo 3D 지도](soho.html)도 보존했습니다.
+GitHub Pages 메인 주소에서 **Office Hierarchy 사무실 시뮬레이션이 바로 실행됩니다.**
 
-정적 배포 파일은 `central-park/dist/`에 있으며, 외부 패키지나 서버 API 없이 GitHub Pages에서 실행됩니다. 실제 데이터 연결에는 외부 NYC Parks·OpenStreetMap·Citi Bike 서비스가 필요합니다. 연결이 어려우면 앱의 **예제로 살펴보기**로 합성 데이터 기능을 확인할 수 있습니다.
+- 메인 페이지: https://hoonizzz.github.io/Spatial-Ai/
+- 22명 에이전트의 직급별 시야·접근·위장·회피, 화장실 예약 및 시나리오 비교
+- [설치·모델·검증 안내](office-hierarchy-sim/README.md)
+- [원본 구현 명세](office-hierarchy-sim/docs/SIMULATION_SPEC.md)
 
 ```sh
-python3 -m http.server 8000
-cd central-park
+cd office-hierarchy-sim
+npm ci
+npm run build
 npm test
-npm run check
 ```
 
-새로운 [Office Hierarchy 사무실 시뮬레이션](office-hierarchy-sim/dist/)은 22명의 직급별 시야·접근·위장·회피와 화장실 예약을 모델링합니다. [설치·모델·검증 안내](office-hierarchy-sim/README.md).
+빌드 시 `office-hierarchy-sim/dist/`와 저장소 루트 `index.html`이 함께 갱신됩니다. 두 배포 파일을 함께 커밋하면 됩니다. 저장소 루트에서 `python3 -m http.server 8000`으로 실행할 수 있습니다. 외부 API 없이 동작합니다.
 
-상세 안내: [Central Park README](central-park/README.md).
+기존 [센트럴파크](central-park/dist/)와 [SoHo](soho.html)는 별도 경로에 보관되어 있습니다.
 
 ---
 

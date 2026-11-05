@@ -1,36 +1,14 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#173e3a">
-  <meta name="description" content="Explore spatial agent simulations: Office Hierarchy, Central Park and SoHo.">
-  <title>Spatial Lab · Simulations</title>
-  <style>
-    :root{font-family:Arial,sans-serif;color:#173e3a;background:#f3f4ef}*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:64px 28px}.eyebrow{font-size:11px;letter-spacing:3px;color:#77847b}h1{font-family:Georgia,serif;font-size:clamp(44px,7vw,76px);font-weight:400;letter-spacing:-2px;margin:24px 0 16px}.intro{color:#6f7d74;line-height:1.7;margin-bottom:40px}.projects{display:grid;grid-template-columns:1fr 1fr;gap:20px}.project{display:flex;flex-direction:column;align-items:start;padding:30px;border:1px solid #d5ddd2;border-radius:10px;background:white}.project.featured{border-top:4px solid #376553}.badge{font-size:10px;letter-spacing:2px;color:#6d7b72}h2{font:normal 30px Georgia,serif;margin:20px 0 12px}.project p{font-size:14px;line-height:1.7;color:#6f7d74;margin:0 0 28px}.open{display:inline-block;margin-top:auto;padding:13px 18px;background:#173e3a;border-radius:5px;color:white;text-decoration:none;font-size:13px}.open:hover{background:#2c5d50}a:focus-visible{outline:3px solid #c58d2f;outline-offset:4px}.archive{display:block;margin-top:24px;color:#536c5f;font-size:13px}footer{margin-top:52px;border-top:1px solid #d5ddd2;padding-top:20px;font-size:11px;color:#77847b}@media(max-width:640px){main{padding:36px 20px}.projects{grid-template-columns:1fr}.project{padding:24px}}
-  </style>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#173e3a"><title>Office Hierarchy · Spatial Lab</title>  <script type="module" crossorigin src="./office-hierarchy-sim/dist/assets/index-B7QQ2wjh.js"></script>
+  <link rel="stylesheet" crossorigin href="./office-hierarchy-sim/dist/assets/index-Bw0_Wr2y.css">
 </head>
-<body>
-  <main>
-    <p class="eyebrow">SPATIAL LAB / INTERACTIVE EXPERIMENTS</p>
-    <h1>Space shapes behavior.</h1>
-    <p class="intro">Choose a simulation to explore movement, perception and the cost of navigating space.</p>
-    <div class="projects">
-      <article class="project featured">
-        <span class="badge">NEW / OFFICE AGENTS</span>
-        <h2>Office Hierarchy</h2>
-        <p>22 agents in one office. Explore how attention ranges and fictional hierarchy rules shape pursuit, pretend work and escape.</p>
-        <a class="open" href="./office-hierarchy-sim/dist/">Open Office Hierarchy →</a>
-      </article>
-      <article class="project">
-        <span class="badge">TERRAIN / ENERGY / PROXIMITY</span>
-        <h2>Central Park</h2>
-        <p>Compare human and horse movement through Central Park, with terrain, energy, fares and walking access to bike stations.</p>
-        <a class="open" href="./central-park/dist/">Open Central Park →</a>
-      </article>
-    </div>
-    <a class="archive" href="./soho.html">Explore the original SoHo 3D navigation study ↗</a>
-    <footer>Hoonizzz / Spatial-Ai · Browser-based spatial simulations</footer>
-  </main>
-</body>
-</html>
+<body><div id="app">
+<header><a href="https://github.com/Hoonizzz/Spatial-Ai">Spatial Lab ↗</a><span>SPATIAL LAB / OFFICE HIERARCHY</span><a href="./office-hierarchy-sim/docs/SIMULATION_SPEC.md">Model specification ↗</a></header>
+<section class="intro"><div><p class="eyebrow">POWER, PERCEPTION & MOVEMENT</p><h1>Office hierarchy.</h1><p>One office. Twenty-two agents. Different attention ranges.</p></div><p class="model-note">A fictional rule-based experiment, not a prediction of workplace behavior. Attention radius represents modeled vigilance, not eyesight.</p></section>
+<div class="stats"><div><small>SIMULATION TIME</small><strong id="clock">00:00</strong></div><div><small>AGENTS</small><strong>22 <em>in circulation</em></strong></div><div><small>WC OCCUPIED</small><strong id="occupancy">0 / 4</strong></div><div><small>WC RESERVED</small><strong id="reserved">0 / 4</strong></div><div><small>OFFICE ESCAPES · WC FULL</small><strong id="full">0</strong></div></div>
+<main><section class="map-card"><div class="toolbar"><div><button id="run">Pause</button><button id="reset" class="secondary">Reset</button><select id="timeScale" aria-label="Simulation time scale"><option value="1">1× time</option><option value="2">2× time</option><option value="4">4× time</option></select></div><span id="runStatus" role="status">Running · fixed 0.05 s timestep</span></div><canvas id="office" tabindex="0" aria-label="Office floorplan. Select an agent below to inspect its field of view."></canvas><div class="legend" id="legend"></div><div class="toggles"><label><input type="checkbox" id="showFov" checked>Selected FOV</label><label><input type="checkbox" id="allFov">All FOV</label><label><input type="checkbox" id="paths" checked>Paths</label><label><input type="checkbox" id="trails" checked>20 s trails</label><label><input type="checkbox" id="heat">Dwell heatmap</label><label><input type="checkbox" id="blockers">Sight blockers</label></div><p class="caption">22 × 14 m · 22 desks · 12 meeting seats · 6 lounge anchors · doors are the only passages. Click a person to inspect.</p></section>
+<aside><section class="card"><p class="eyebrow">01 / EXPERIMENT CONTROLS</p><label>Scenario<select id="scenario"><option>Baseline</option><option>Equal vision</option><option>Strong hierarchy</option><option>No WC escape</option><option>High visibility</option></select></label><div class="pair"><label>Random seed<input id="seed" type="number" value="42" min="0" max="4294967295" step="1"></label><label>Speed multiplier<input id="speed" type="number" value="1" min="0.25" max="2" step="0.25"></label></div><label>Shared field of view <output id="fovValue">110°</output><input id="fov" type="range" min="30" max="180" value="110" step="5"></label><p class="field-title">Attention radius · meters</p><div class="radii" id="radii"></div><label>Pretend work <output id="pretendValue">45%</output><input id="pretend" type="range" min="0" max="100" value="45"></label><div class="pair"><label>Min. escape (s)<input id="avoid" type="number" value="2" min="2" max="20" step="0.5"></label><label>Pursuit limit (s)<input id="pursuit" type="number" value="8" min="1" max="30" step="0.5"></label></div><label><input type="checkbox" id="desksBlock">Desks block sight</label><label><input type="checkbox" id="reevaluate">Reevaluate work at close range (70% flee)</label><p class="caption">WC capacity is locked at 4; “No WC escape” sets it to 0. High visibility makes walls transparent to sight, while keeping physical walls.</p><button id="apply" class="secondary wide">Apply settings & restart</button><p id="settingsStatus" role="status" class="caption">Settings changes restart with the same seed.</p></section>
+<section class="card"><p class="eyebrow">02 / AGENT INSPECTOR</p><label>Selected agent<select id="agentSelect"></select></label><dl id="inspector"></dl></section></aside></main>
+<section class="card results"><div class="section-heading"><div><p class="eyebrow">03 / OBSERVED BEHAVIOR</p><h2>Time, distance & reactions</h2></div><div><button id="csv" class="secondary">Export CSV</button><button id="json" class="secondary">Export JSON</button></div></div><div class="table-scroll"><table><thead><tr><th>Role</th><th>Phone time</th><th>Pretend events</th><th>WC escape events</th><th>Office escape events</th><th>Mean speed</th><th>Distance</th><th>Superior detected</th><th>Mean CEO distance</th></tr></thead><tbody id="metrics"></tbody></table></div><p id="wcStats" class="caption"></p><div id="roomStats" class="room-stats"></div></section>
+<div class="bottom-grid"><section class="card"><p class="eyebrow">04 / EVENT LOG · LAST 500 RETAINED</p><div id="events" aria-label="Recent state transitions"></div></section><section class="card"><p class="eyebrow">05 / CONTROLLED COMPARISON</p><h2>Same seeds. One variable.</h2><p>Runs all five scenarios with identical starting positions per seed. Results are model outputs; compare the mean and sample variance across at least 20 seeds.</p><div class="pair"><label>Seeds (starting at current seed)<input id="batchSeeds" type="number" value="20" min="20" max="100" step="1"></label><label>Seconds per run<input id="batchSeconds" type="number" value="60" min="10" max="1800" step="10"></label></div><button id="compare">Run comparison</button><button id="cancelBatch" class="secondary" hidden>Cancel</button><button id="batchExport" class="secondary" disabled>Export comparison CSV</button><p id="batchStatus" role="status">Uses a separate worker; the interactive simulation stays available.</p><div class="table-scroll"><table><thead><tr><th>Scenario</th><th>Escape state entries μ / s²</th><th>Phone % μ / s²</th><th>Distance m μ / s²</th></tr></thead><tbody id="batchResults"></tbody></table></div></section></div>
+<footer>Seeded randomness · Fixed timestep · Fictional behavior rules · All distances in meters</footer></div></body></html>
