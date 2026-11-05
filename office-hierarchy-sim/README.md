@@ -4,6 +4,8 @@ An English-language Three.js 3D simulation with a 2D plan view of configurable f
 
 한국어 변경 기준: [v3 인원수·시야·회피·화질](docs/IMPLEMENTATION_V3.ko.md), [v2 구현 변경점](docs/IMPLEMENTATION_V2.ko.md).
 
+현재 구현을 재구현하기 위한 통합 문서: [Office Hierarchy 통합 구현 명세](docs/OFFICE_HIERARCHY_REBUILD_SPEC.ko.md).
+
 ## Open or develop
 
 The checked-in `dist/` runs on GitHub Pages without a runtime API, CDN, credentials or package installation. From the repository root:
