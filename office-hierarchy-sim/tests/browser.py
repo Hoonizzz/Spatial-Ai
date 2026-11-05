@@ -20,6 +20,49 @@ with sync_playwright() as p:
     assert page.locator('#agentSelect option').count() == 22
     page.wait_for_function('officeTest.mode === "3d" && officeTest.scene.actors.size === 22 && officeTest.scene.visibleFovCount === 22')
     assert page.locator('#allFov').is_checked()
+    assert [page.locator('#radius-'+r).input_value() for r in ['CEO','LEAD','ASSOCIATE','JUNIOR']] == ['3','2.5','3.5','4.5']
+    assert page.locator('#office').get_attribute('data-quality') == 'high'
+    page.locator('#quality').select_option('balanced')
+    page.wait_for_function('officeTest.scene.renderer.getPixelRatio()===1')
+    low_width = page.evaluate('officeTest.scene.renderer.domElement.width')
+    page.locator('#quality').select_option('high')
+    assert page.evaluate('officeTest.scene.renderer.domElement.width') >= low_width*2-1
+    assert page.locator('#office').get_attribute('data-shadow-resolution') == '4096'
+    page.locator('#quality').select_option('ultra')
+    assert page.evaluate('officeTest.scene.renderer.domElement.width') >= low_width*3-1
+    assert page.evaluate('officeTest.sim.time') == t, 'Quality changes restarted playback'
+    page.locator('#quality').select_option('balanced')
+    def population(counts):
+        for role,n in counts.items(): page.locator('#count-'+role).fill(str(n))
+        page.locator('#apply').click()
+    population({'CEO':2,'LEAD':2,'ASSOCIATE':3,'JUNIOR':4})
+    page.wait_for_function('officeTest.scene.actors.size===11 && officeTest.scene.visibleFovCount===11')
+    assert page.locator('#agentTotal').inner_text() == '11'
+    assert page.locator('#agentSelect option').count() == 11
+    assert page.evaluate('officeTest.sim.agents.filter(a=>a.role==="CEO").length') == 2
+    population({'CEO':0,'LEAD':2,'ASSOCIATE':0,'JUNIOR':4})
+    page.wait_for_function('officeTest.scene.actors.size===6')
+    assert page.evaluate('!officeTest.scene.actors.has("CEO-1") && !officeTest.scene.actors.has("ASSOCIATE-1")')
+    assert page.evaluate('officeTest.view.selected') == 'LEAD-1'
+    assert page.evaluate('officeTest.sim.metrics().every(m=>m.ceoDistance===null)')
+    population({'CEO':0,'LEAD':0,'ASSOCIATE':0,'JUNIOR':0})
+    page.wait_for_function('officeTest.scene.actors.size===0 && officeTest.scene.visibleFovCount===0')
+    assert page.locator('#agentSelect').is_disabled()
+    assert 'Add agents' in page.locator('#inspector').inner_text()
+    population({'CEO':40,'LEAD':40,'ASSOCIATE':40,'JUNIOR':40})
+    assert '120' in page.locator('#settingsStatus').inner_text()
+    assert page.evaluate('officeTest.sim.agents.length') == 0
+    population({'CEO':1,'LEAD':1,'ASSOCIATE':0,'JUNIOR':0})
+    page.locator('#pretend').fill('0');page.locator('#wcShare').fill('0');page.locator('#apply').click()
+    page.evaluate("""(()=>{const [ceo,lead]=officeTest.sim.agents;
+        Object.assign(ceo,{x:26,y:18,heading:Math.PI,path:[{x:24,y:18}]});
+        Object.assign(lead,{x:24,y:18,heading:0,state:'PHONE',until:10,path:[{x:29,y:18}]});
+        officeTest.step(10);})()""")
+    assert page.evaluate('officeTest.sim.agents[1].state==="FLEE_TO_ROOM" && Math.cos(officeTest.sim.agents[1].heading)<.2')
+    assert page.evaluate('Math.abs(officeTest.scene.actors.get("LEAD-1").root.rotation.y-officeTest.sim.agents[1].heading-Math.PI/2)<1e-7')
+    page.locator('#pretend').fill('45');page.locator('#wcShare').fill('25')
+    population({'CEO':1,'LEAD':3,'ASSOCIATE':6,'JUNIOR':12})
+    page.wait_for_function('officeTest.scene.actors.size===22')
     old_seed = page.evaluate('officeTest.sim.config.seed')
     old_layout = page.evaluate('officeTest.sim.agents.map(a=>[a.x,a.y,a.heading])')
     page.locator('#reset').click()
@@ -109,9 +152,10 @@ with sync_playwright() as p:
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile overflow'
     page.locator('#viewMode').select_option('3d')
     assert page.locator('#office').bounding_box()['width'] < 390
+    page.locator('#quality').select_option('high')
     page.screenshot(path='/tmp/office-mobile.png', full_page=True)
     assert not errors, errors
     page.goto(URL)
     assert page.evaluate('typeof window.officeTest') == 'undefined'
     browser.close()
-    print('PASS: 22 voxel people, all FOV, 616 m², random reset + seeded replay, 3D selection/orbit, 2D switch, controls, room-refuge settings, exports, 100 worker runs, mobile, no runtime errors')
+    print('PASS: editable populations (multiple/no CEOs, empty office, actor cleanup), half ranges, high/ultra rendering, visible CEO reaction, reset/replay, 3D controls, exports, 100 worker runs, mobile, no runtime errors')

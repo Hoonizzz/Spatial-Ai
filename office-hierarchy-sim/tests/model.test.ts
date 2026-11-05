@@ -13,7 +13,7 @@ import {visionFan} from '../src/render/vision';
 import type { Agent } from '../src/types';
 const nav=new Navigation();
 const sim=()=>new Simulation(defaults(),nav);
-function pair(s:Simulation) {const a=s.agents[0],b=s.agents[1];Object.assign(a,{...scaled({x:11,y:7}),heading:0});Object.assign(b,{...scaled({x:13,y:7}),heading:Math.PI});return [a,b];}
+function pair(s:Simulation) {const a=s.agents[0],b=s.agents[1];Object.assign(a,{...scaled({x:11,y:7}),heading:0});Object.assign(b,{x:a.x+2,y:a.y,heading:Math.PI});a.path=[{x:b.x,y:b.y}];b.path=[{x:a.x,y:a.y}];return [a,b];}
 test('22 safely placed agents, common FOV, correct role radii and fixed speeds',()=>{
   const s=sim();assert.equal(s.agents.length,22);for(const a of s.agents){assert.equal(a.fovDeg,110);assert.equal(a.visionRangeM,defaults().radii[a.role]);assert(walkable(a));for(const b of s.agents)if(a!==b)assert(distance(a,b)>=.75);}
   assert.deepEqual([ROLE.CEO.base,ROLE.CEO.approach,ROLE.JUNIOR.base,ROLE.JUNIOR.flee],[1,2,3,5]);
@@ -98,7 +98,7 @@ test('30-minute run: no wall penetration, WC overflow, overlapping agents or per
       for(let j=i+1;j<s.agents.length;j++)assert(distance(a,s.agents[j])>=.6-1e-7,`overlap at ${s.time}`);
       assert(!(a.role==='CEO'&&a.state==='PHONE'));
     }
-    if(n%6000===5999){checkpoints++;for(const a of s.agents){assert(a.distance-(recent.get(a.id)??0)>1,`${a.id} immobilized over 300 seconds`);recent.set(a.id,a.distance);}}
+    if(n%6000===5999){checkpoints++;for(const a of s.agents){assert(a.distance-(recent.get(a.id)??0)>1,`${a.id} immobilized at ${s.time}s: ${a.state} pos=${a.x},${a.y} goal=${JSON.stringify(a.targetPoint)} path=${JSON.stringify(a.path)} stuck=${a.stuck}`);recent.set(a.id,a.distance);}}
   }
   assert.equal(checkpoints,6);for(const room of ['WORK','MEETING','LOUNGE'] as const)assert(s.agents.some(a=>a.roomTime[room]>0));
 });

@@ -9,10 +9,11 @@ export function canSee(a:Agent,b:Agent,c:Config):boolean {
 export function perceive(agents:Agent[],c:Config,now:number,dt:number):Map<string,Perception> {
   const result=new Map<string,Perception>();
   for(const a of agents){const visible:Agent[]=[];for(const b of agents){if(a.id===b.id)continue;
-    if(canSee(a,b,c)){const since=a.seen.get(b.id)??now;a.seen.set(b.id,since);if(now-since>=.15-1e-8)a.stable.add(b.id);}
+    const currentlyVisible=canSee(a,b,c);
+    if(currentlyVisible){const since=a.seen.get(b.id)??now;a.seen.set(b.id,since);if(now-since>=.15-1e-8)a.stable.add(b.id);}
     else {a.seen.delete(b.id);}
     // Separate last-visible timestamp from detection-start timestamp.
-    const key=`last:${b.id}`;if(canSee(a,b,c))a.seen.set(key,now);
+    const key=`last:${b.id}`;if(currentlyVisible)a.seen.set(key,now);
     if(a.stable.has(b.id)&&(now-(a.seen.get(key)??-Infinity))>.7)a.stable.delete(b.id);
     if(a.stable.has(b.id))visible.push(b);
   }

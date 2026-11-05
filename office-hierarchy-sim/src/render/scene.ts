@@ -17,9 +17,9 @@ function block(parent:THREE.Object3D,w:number,h:number,d:number,x:number,y:numbe
   const mesh=new THREE.Mesh(geometry,m);mesh.scale.set(w,h,d);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;
 }
 function label(text:string,color='#476359',width=3.5) {
-  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=80;
-  const c=canvas.getContext('2d')!;c.clearRect(0,0,512,80);c.fillStyle=color;c.font='600 36px Arial';c.textAlign='center';c.textBaseline='middle';c.fillText(text,256,40);
-  const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;
+  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=160;
+  const c=canvas.getContext('2d')!;c.clearRect(0,0,1024,160);c.fillStyle=color;c.font='600 72px Arial';c.textAlign='center';c.textBaseline='middle';c.fillText(text,512,80);
+  const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=4;
   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthWrite:false,transparent:true}));sprite.scale.set(width,width*80/512,1);return sprite;
 }
 function pixelTexture(base:string,seed:number,face=false,hair='#37281f',longHair=false) {
@@ -59,11 +59,12 @@ function linePoints(line:THREE.Line,points:THREE.Vector3[]) {line.geometry.dispo
 export class OfficeScene {
   renderer:THREE.WebGLRenderer; scene=new THREE.Scene();camera=new THREE.OrthographicCamera();controls:OrbitControls;
   actors=new Map<string,Actor>();blockerEdges=new THREE.Group();heat:THREE.InstancedMesh;wcPads:THREE.Mesh[]=[];visibleFovCount=0;
+  quality:'balanced'|'high'|'ultra'='high';private qualityDirty=true;private shadowLight:THREE.DirectionalLight;private lastCamera='';
   private lastSimulation:Simulation|null=null;private lastTime=-1;private lastSelected='';private lastFlags='';private down={x:0,y:0};
   constructor(public canvas:HTMLCanvasElement) {
-    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor('#f1f4ed');
-    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;
-    this.scene.add(new THREE.HemisphereLight('#fff9e7','#869e8d',2.4));const light=new THREE.DirectionalLight('#fff3d5',3);light.position.set(8,32,5);light.castShadow=true;light.shadow.mapSize.set(2048,2048);Object.assign(light.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:90});light.shadow.bias=-.0005;this.scene.add(light);
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});this.renderer.setPixelRatio(1);this.renderer.setClearColor('#f1f4ed');
+    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.1;this.renderer.shadowMap.autoUpdate=false;
+    this.scene.add(new THREE.HemisphereLight('#fff9e7','#869e8d',1.8));const light=new THREE.DirectionalLight('#fff3d5',2);light.position.set(8,32,5);light.castShadow=true;light.shadow.mapSize.set(2048,2048);Object.assign(light.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:90});light.shadow.bias=-.0005;this.scene.add(light);this.shadowLight=light;
     this.controls=new OrbitControls(this.camera,canvas);this.controls.enableDamping=true;this.controls.minPolarAngle=.15;this.controls.maxPolarAngle=Math.PI*.47;this.controls.minZoom=.6;this.controls.maxZoom=5;
     this.resetCamera();
     block(this.scene,WIDTH+.8,.3,HEIGHT+.8,WIDTH/2,-.2,HEIGHT/2,material('#b8c7b9'));
@@ -82,7 +83,33 @@ export class OfficeScene {
     for(let i=0;i<hideSlots.length;i++){const pos=world(hideSlots[i]);const pad=block(this.scene,.8,.06,.8,pos.x,.04,pos.z,material('#99b8ba'));this.wcPads.push(pad);const name=label(`WC ${i+1}`,'#6e8c8d',1);name.position.copy(pos).y=.8;this.scene.add(name);}
     for(const r of [...walls,...furniture,...desks]){const edge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(r.w,.9,r.h)),new THREE.LineBasicMaterial({color:'#bc603e'}));edge.position.set(r.x+r.w/2,.45,HEIGHT-r.y-r.h/2);edge.userData.kind=r.kind;this.blockerEdges.add(edge);}this.scene.add(this.blockerEdges);
     this.heat=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:'white',transparent:true,opacity:.48,depthWrite:false,side:THREE.DoubleSide}),HEAT_COLS*Math.ceil(HEIGHT));this.heat.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.heat.frustumCulled=false;this.scene.add(this.heat);
+    this.setQuality('high');
     canvas.addEventListener('pointerdown',e=>{this.down={x:e.clientX,y:e.clientY};});
+  }
+  setQuality(quality:'balanced'|'high'|'ultra') {
+    this.quality=quality;const factor={balanced:1,high:2,ultra:3}[quality];
+    const rect=this.canvas.getBoundingClientRect();
+    const limit=this.renderer.getContext().getParameter(this.renderer.getContext().MAX_RENDERBUFFER_SIZE) as number;
+    const ratio=Math.min(Math.max(devicePixelRatio,factor),3,limit/Math.max(1,rect.width,rect.height));
+    this.renderer.setPixelRatio(ratio);
+    const resolution=Math.min(this.renderer.capabilities.maxTextureSize,quality==='balanced'?2048:4096);
+    this.shadowLight.shadow.mapSize.set(resolution,resolution);this.shadowLight.shadow.map?.dispose();this.shadowLight.shadow.map=null;
+    this.qualityDirty=true;this.canvas.dataset.quality=quality;this.canvas.dataset.pixelRatio=String(ratio);this.canvas.dataset.shadowResolution=String(resolution);
+  }
+  private removeActor(id:string,actor:Actor) {
+    const shared=new Set(materials.values()),disposedMaterials=new Set<THREE.Material>(),disposedTextures=new Set<THREE.Texture>();
+    for(const root of [actor.root,actor.fan,actor.outline,actor.path,actor.trail]) {
+      this.scene.remove(root);root.traverse(object=>{
+        const mesh=object as THREE.Mesh;if(mesh.geometry&&mesh.geometry!==geometry&&!((object as THREE.Sprite).isSprite))mesh.geometry.dispose();
+        if(!mesh.material)return;
+        for(const mat of Array.isArray(mesh.material)?mesh.material:[mesh.material]) {
+          if(shared.has(mat as THREE.MeshStandardMaterial)||disposedMaterials.has(mat))continue;
+          const map=(mat as THREE.MeshStandardMaterial).map;if(map&&!disposedTextures.has(map)){map.dispose();disposedTextures.add(map);}
+          mat.dispose();disposedMaterials.add(mat);
+        }
+      });
+    }
+    this.actors.delete(id);
   }
   resetCamera(){this.controls?.target.set(WIDTH/2,0,HEIGHT/2);this.camera.position.set(WIDTH/2+21,29,HEIGHT/2+27);this.camera.zoom=1;this.camera.lookAt(WIDTH/2,0,HEIGHT/2);this.camera.updateProjectionMatrix();this.controls?.update();}
   pick(event:MouseEvent):string|null {
@@ -91,12 +118,15 @@ export class OfficeScene {
     const hits=ray.intersectObjects([...this.actors.values()].map(a=>a.root),true);
     for(const hit of hits){let obj:THREE.Object3D|null=hit.object;while(obj){if(obj.userData.agentId)return obj.userData.agentId;obj=obj.parent;}}return null;
   }
-  project(id:string) {const p=this.actors.get(id)!.root.position.clone();p.y=1;p.project(this.camera);const r=this.canvas.getBoundingClientRect();return {x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}
+  project(id:string) {const actor=this.actors.get(id);if(!actor)return null;const p=actor.root.position.clone();p.y=1;p.project(this.camera);const r=this.canvas.getBoundingClientRect();return {x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}
   draw(s:Simulation,v:View) {
     const rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
     const width=Math.round(rect.width),height=Math.round(rect.height);
-    const size=this.renderer.getSize(new THREE.Vector2());if(size.x!==width||size.y!==height){this.renderer.setSize(width,height,false);const span=HEIGHT*1.65,aspect=width/height;this.camera.left=-span*aspect/2;this.camera.right=span*aspect/2;this.camera.top=span/2;this.camera.bottom=-span/2;this.camera.updateProjectionMatrix();}
+    const size=this.renderer.getSize(new THREE.Vector2()),resized=size.x!==width||size.y!==height;if(resized){this.renderer.setSize(width,height,false);const span=HEIGHT*1.65,aspect=width/height;this.camera.left=-span*aspect/2;this.camera.right=span*aspect/2;this.camera.top=span/2;this.camera.bottom=-span/2;this.camera.updateProjectionMatrix();}
     this.controls.update();const flags=JSON.stringify(v),changed=s!==this.lastSimulation||s.time!==this.lastTime||v.selected!==this.lastSelected||flags!==this.lastFlags;
+    const cameraState=JSON.stringify([this.camera.position.toArray(),this.camera.quaternion.toArray(),this.camera.zoom,this.controls.target.toArray()]);
+    if(!changed&&!resized&&!this.qualityDirty&&cameraState===this.lastCamera)return;
+    const ids=new Set(s.agents.map(a=>a.id));for(const [id,actor] of this.actors)if(!ids.has(id))this.removeActor(id,actor);
     this.visibleFovCount=0;
     for(let i=0;i<s.agents.length;i++){
       const a=s.agents[i];let actor=this.actors.get(a.id);if(!actor){actor=character(a,i);this.actors.set(a.id,actor);this.scene.add(actor.root,actor.fan,actor.outline,actor.path,actor.trail);}
@@ -117,7 +147,7 @@ export class OfficeScene {
     this.heat.visible=v.heat;
     if(changed&&v.heat){const max=Math.max(1,...s.heat),dummy=new THREE.Object3D();s.heat.forEach((n,i)=>{const x=i%HEAT_COLS,y=Math.floor(i/HEAT_COLS),w=Math.min(1,WIDTH-x),h=Math.min(1,HEIGHT-y);dummy.position.set(x+w/2,.04,HEIGHT-y-h/2);dummy.rotation.x=-Math.PI/2;dummy.scale.set(w,h,1);dummy.updateMatrix();this.heat.setMatrixAt(i,dummy.matrix);this.heat.setColorAt(i,new THREE.Color('#f4efdf').lerp(new THREE.Color('#b86335'),n/max));});this.heat.instanceMatrix.needsUpdate=true;if(this.heat.instanceColor)this.heat.instanceColor.needsUpdate=true;}
     for(let i=0;i<this.wcPads.length;i++)this.wcPads[i].material=[...s.wc.slots.values()].includes(i)?material('#be8456'):material('#99b8ba');
-    this.lastSimulation=s;this.lastTime=s.time;this.lastSelected=v.selected;this.lastFlags=flags;this.renderer.render(this.scene,this.camera);
+    this.lastSimulation=s;this.lastTime=s.time;this.lastSelected=v.selected;this.lastFlags=flags;this.lastCamera=cameraState;this.renderer.shadowMap.needsUpdate=changed||this.qualityDirty;this.qualityDirty=false;this.renderer.render(this.scene,this.camera);
     this.canvas.dataset.agents=String(this.actors.size);this.canvas.dataset.fovCount=String(this.visibleFovCount);this.canvas.dataset.renderer='three-voxel';
   }
 }

@@ -3,8 +3,8 @@ import { ROLE } from '../config';
 import { walls,desks,furniture,hideSlots,workAnchors,loungeAnchors, WIDTH, HEIGHT, roomBounds, HEAT_COLS, SPACE_SCALE } from '../world/floorplan';
 import { visionFan } from './vision';
 export interface View { selected:string; fov:boolean; allFov:boolean; paths:boolean; trails:boolean; heat:boolean; blockers:boolean }
-export function draw(canvas:HTMLCanvasElement,s:Simulation,v:View) {
-  const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+export function draw(canvas:HTMLCanvasElement,s:Simulation,v:View,renderScale=window.devicePixelRatio||1) {
+  const rect=canvas.getBoundingClientRect(),dpr=Math.max(1,renderScale);
   if(canvas.width!==Math.round(rect.width*dpr)||canvas.height!==Math.round(rect.height*dpr)){canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);}
   const c=canvas.getContext('2d')!,scale=canvas.width/WIDTH;c.setTransform(scale,0,0,-scale,0,canvas.height);c.clearRect(0,0,WIDTH,HEIGHT);
   const box=(x:number,y:number,w:number,h:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};

@@ -1,6 +1,6 @@
 import type { Point, Room } from '../types';
 import { GRID, WIDTH, HEIGHT, walkable, clearMove, roomAt } from './floorplan';
-import { distance } from '../config';
+import { distance,segmentDistance } from '../config';
 export class Navigation {
   lookup=new Map<string,number>(); points: Point[]=[]; neighbors: Array<Array<[number,number]>>=[]; roomPoints: Record<Room,Point[]>={WORK:[],MEETING:[],LOUNGE:[],WC:[],CORRIDOR:[]};
   constructor() {
@@ -15,18 +15,18 @@ export class Navigation {
     if(d<=2.5*GRID)return best;
     for(let i=0;i<this.points.length;i++)consider(i);return best;
   }
-  find(a:Point,b:Point,allowWC=false): Point[] {
+  find(a:Point,b:Point,allowWC=false,avoid:Point[]=[]): Point[] {
     const s=this.nearest(a,allowWC),t=this.nearest(b,allowWC);if(s<0||t<0)return [];
     const cost=new Float64Array(this.points.length).fill(Infinity),parent=new Int32Array(this.points.length).fill(-1),closed=new Uint8Array(this.points.length);
     const heap:Array<[number,number]>=[];
     const push=(v:[number,number])=>{heap.push(v);let i=heap.length-1;while(i>0){const p=(i-1)>>1;if(heap[p][0]<=v[0])break;heap[i]=heap[p];i=p;}heap[i]=v;};
     const pop=()=>{const root=heap[0],v=heap.pop()!;if(heap.length){let i=0;while(i*2+1<heap.length){let c=i*2+1;if(c+1<heap.length&&heap[c+1][0]<heap[c][0])c++;if(v[0]<=heap[c][0])break;heap[i]=heap[c];i=c;}heap[i]=v;}return root[1];};
     cost[s]=0;push([distance(this.points[s],this.points[t]),s]);
-    while(heap.length){const u=pop();if(closed[u])continue;closed[u]=1;if(u===t)break;for(const [v,w] of this.neighbors[u]){if(!allowWC&&roomAt(this.points[v])==='WC')continue;const c=cost[u]+w;if(c<cost[v]){cost[v]=c;parent[v]=u;push([c+distance(this.points[v],this.points[t]),v]);}}}
+    while(heap.length){const u=pop();if(closed[u])continue;closed[u]=1;if(u===t)break;for(const [v,w] of this.neighbors[u]){if(!allowWC&&roomAt(this.points[v])==='WC')continue;if(avoid.some(p=>segmentDistance(p,this.points[u],this.points[v])<.68))continue;const c=cost[u]+w;if(c<cost[v]){cost[v]=c;parent[v]=u;push([c+distance(this.points[v],this.points[t]),v]);}}}
     if(!Number.isFinite(cost[t]))return [];
     const route:Point[]=[];for(let u=t;u!==-1;u=parent[u])route.push(this.points[u]);route.reverse();
-    if(clearMove(route[route.length-1],b,allowWC))route.push({...b});
+    if(clearMove(route[route.length-1],b,allowWC)&&!avoid.some(p=>segmentDistance(p,route[route.length-1],b)<.68))route.push({...b});
     // String pulling uses the same inflated obstacles as motion, including door jambs.
-    const out:Point[]=[];let p=a;for(let i=0;i<route.length;){let j=i;while(j+1<route.length&&clearMove(p,route[j+1],allowWC))j++;out.push({...route[j]});p=route[j];i=j+1;}return out;
+    const out:Point[]=[];let p=a;for(let i=0;i<route.length;){let j=i;while(j+1<route.length&&clearMove(p,route[j+1],allowWC)&&!avoid.some(q=>segmentDistance(q,p,route[j+1])<.68))j++;out.push({...route[j]});p=route[j];i=j+1;}return out;
   }
 }
