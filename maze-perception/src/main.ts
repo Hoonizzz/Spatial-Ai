@@ -38,8 +38,8 @@ const advanced: [keyof Config, string, number, number, number][] = [
   ["timeLimit", "Time limit (s)", 10, 1800, 10],
 ];
 document.querySelector("#app")!.innerHTML = `
- <header><a class="brand" href="#">SPATIAL <span>LAB / 02</span></a><div class="project-title">Perception in a Maze <span>Human × Bat</span></div><span class="live"><i></i> LOCAL SIMULATION</span></header>
- <main><aside class="controls"><div class="eyebrow">EXPERIMENT DESIGN</div><h1>Same world.<br>Different knowledge.</h1><p class="intro">Two sensing systems. One moving target. Watch space become memory.</p>
+ <header><a class="brand" href="#">SPATIAL <span>LAB / 02</span></a><div class="project-title">Perception in a Maze <span>Human × Bat</span></div><nav class="workspace-links"><a href="#controls-panel">Controls</a><a href="#analytics-panel">Agent maps</a></nav><label class="interface-size">UI size<select id="ui-size" aria-label="Interface size"><option value="1">100%</option><option value="2">200%</option><option value="3" selected>300%</option></select></label><span class="live"><i></i> LOCAL SIMULATION</span></header>
+ <main><aside class="controls" id="controls-panel"><div class="eyebrow">EXPERIMENT DESIGN</div><h1>Same world.<br>Different knowledge.</h1><p class="intro">Two sensing systems. One moving target. Watch space become memory.</p>
  <section><div class="section-title"><b>01</b> Environment</div><label for="environment">Material experiment</label><select id="environment"><option value="A">A · LiDAR advantage / foam</option><option value="B">B · Echo advantage / glass</option><option value="C" selected>C · Balanced / concrete</option></select><p class="hint">Switching resets both maps. Geometry, starts and random streams stay fixed.</p><div class="seed-row"><label>Seed<input id="seed" type="number" min="0" max="4294967295" value="2026"></label><button id="regenerate" title="Generate a fresh random seed">New maze ↗</button></div></section>
  <section><div class="section-title"><b>02</b> Sensing</div>${sliders.map(([k, label, min, max, step, unit]) => `<label class="range-label" for="${k}">${label}<output id="${k}-value">${config[k]} ${unit}</output></label><input id="${k}" type="range" min="${min}" max="${max}" step="${step}" value="${config[k]}">`).join("")}<details><summary>Advanced model parameters</summary>${advanced.map(([k, label, min, max, step]) => `<label class="advanced">${label}<input id="${k}" type="number" min="${min}" max="${max}" step="${step}" value="${config[k]}"></label>`).join("")}<p class="hint">Material coefficients are modeling assumptions, not measured properties. Changing these restarts the experiment.</p>${Object.entries(
    materials,
@@ -67,8 +67,8 @@ document.querySelector("#app")!.innerHTML = `
    )
    .join("")}</div></section>
  <p class="method">Geometry-based sensing · Fixed 50 ms steps<br>30 × 30 × 12 m · 1 m occupancy voxels</p></aside>
- <article class="viewport"><div class="view-toolbar"><span><i class="dot"></i> LIVE SPATIAL VIEW</span><select id="camera" aria-label="Camera view"><option value="orbit">Orbit view</option><option value="top">Top view</option><option value="follow-human">Follow human</option><option value="follow-bat">Follow bat</option><option value="follow-mouse">Follow mouse</option></select></div><div id="scene" aria-label="Interactive 3D maze"></div><div id="render-error" hidden></div><div class="view-caption">DRAG TO ORBIT · SCROLL TO ZOOM · RIGHT DRAG TO PAN</div><div class="legend"><span class="human">● LiDAR knowledge</span><span class="bat">● Echo knowledge</span><span class="both">● Shared discovery</span><span>○ Unknown</span></div><div class="transport"><button id="start" class="primary">▶ Start experiment</button><button id="reset">↺ Reset</button><label>Speed<select id="speed"><option>1</option><option>2</option><option>4</option><option>6</option><option>10</option></select><span>×</span></label><div class="clock"><strong id="time">00:00.0</strong><span id="limit">/ 300 s</span></div></div></article>
- <aside class="analytics"><div class="eyebrow">LIVE OBSERVATIONS</div><div id="result" role="status">Ready to explore<span>Start both agents simultaneously.</span></div><div id="metrics"></div><section class="mouse-card"><div class="section-title"><b>●</b> Mouse / moving target</div><div id="mouse-status"></div><p class="hint">Passive hearing belongs to the bat only. Cues are uncertain and attenuated by intervening walls.</p></section><section><div class="section-title">Material key</div><div class="material-key"><span>▧ Foam / absorptive</span><span>▱ Glass / transparent</span><span>▦ Concrete / baseline</span><span>▰ Metal / reflective</span></div></section><button id="export">↓ Export experiment JSON</button><p class="method">Coverage measures observed free 3D volume. Accuracy measures correct classifications among known voxels; unknown cells are excluded. Different mobility means this compares complete agent systems.</p><a href="https://github.com/Hoonizzz/Spatial-Ai" target="_blank" rel="noreferrer">Source & methodology ↗</a></aside></main>`;
+ <article class="viewport"><div class="view-toolbar"><span><i class="dot"></i> LIVE SPATIAL VIEW</span><div class="view-options"><div id="knowledge-view" class="knowledge-switch" role="group" aria-label="Displayed knowledge"><button data-knowledge="world" aria-pressed="true">All</button><button data-knowledge="human" aria-pressed="false">Human</button><button data-knowledge="bat" aria-pressed="false">Bat</button><button data-knowledge="overlap" aria-pressed="false">Shared</button></div><label class="cutaway-label"><input id="cutaway" type="checkbox" checked>Low walls</label><select id="camera" aria-label="Camera view"><option value="orbit">Orbit view</option><option value="top">Top view</option><option value="follow-human">Follow human</option><option value="follow-bat">Follow bat</option><option value="follow-mouse">Follow mouse</option></select></div></div><div class="transport"><button id="start" class="primary">▶ Start experiment</button><button id="reset">↺ Reset</button><label>Speed<select id="speed"><option>1</option><option>2</option><option>4</option><option>6</option><option>10</option></select><span>×</span></label><div class="clock"><strong id="time">00:00.0</strong><span id="limit">/ 300 s</span></div></div><div id="scene" aria-label="Interactive 3D maze"></div><div id="render-error" hidden></div><div class="view-caption">LOW WALLS = DISPLAY CUTAWAY ONLY · COLLISIONS KEEP FULL HEIGHT</div><div class="legend"><span class="human">● LiDAR knowledge</span><span class="bat">● Echo knowledge</span><span class="both">● Shared discovery</span><span>○ Unknown</span></div></article>
+ <aside class="analytics" id="analytics-panel"><div class="eyebrow">LIVE OBSERVATIONS</div><div id="result" role="status">Ready to explore<span>Start both agents simultaneously.</span></div><div id="metrics"></div><section class="mouse-card"><div class="section-title"><b>●</b> Mouse / moving target</div><div id="mouse-status"></div><p class="hint">Passive hearing belongs to the bat only. Cues are uncertain and attenuated by intervening walls.</p></section><section><div class="section-title">Material key</div><div class="material-key"><span>▧ Foam / opaque, sound absorbing</span><span>▱ Glass / transparent, blue frame</span><span>▦ Concrete / opaque</span><span>▰ Metal / opaque, reflective</span></div></section><button id="export">↓ Export experiment JSON</button><p class="method">Coverage measures observed free 3D volume. Accuracy measures correct classifications among known voxels; unknown cells are excluded. Different mobility means this compares complete agent systems.</p><a href="https://github.com/Hoonizzz/Spatial-Ai" target="_blank" rel="noreferrer">Source & methodology ↗</a></aside></main>`;
 let scene: Scene | undefined;
 try {
   scene = new Scene($("scene"), sim);
@@ -157,6 +157,65 @@ $("export").addEventListener("click", () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+
+function drawMemoryPlans() {
+  for (const a of sim.agents) {
+    const canvas = $<HTMLCanvasElement>(`memory-${a.kind}`);
+    if (!canvas) continue;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#e7e9ef";
+    ctx.fillRect(0, 0, 360, 360);
+    const cells = new Map<string, number>();
+    for (const [k, value] of a.memory.cells) {
+      const [x, y, z] = k.split(",").map(Number);
+      if (y > 1) continue;
+      const id = `${x},${z}`;
+      cells.set(id, Math.max(cells.get(id) ?? 0, value));
+    }
+    for (const [k, value] of cells) {
+      const [x, z] = k.split(",").map(Number);
+      ctx.fillStyle =
+        a.kind === "Human"
+          ? value
+            ? "#1160d0"
+            : "#bedbff"
+          : value
+            ? "#b94c08"
+            : "#ffdab6";
+      ctx.fillRect(x * 12 + 0.5, z * 12 + 0.5, 11, 11);
+    }
+    ctx.beginPath();
+    ctx.arc(a.p.x * 12, a.p.z * 12, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#25334c";
+    ctx.stroke();
+  }
+}
+$("knowledge-view").addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+    "button[data-knowledge]",
+  );
+  if (!button || !scene) return;
+  scene.knowledgeMode = button.dataset.knowledge!;
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-knowledge]")
+    .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+});
+$("cutaway").addEventListener("change", () => {
+  if (scene) {
+    scene.cutaway = $<HTMLInputElement>("cutaway").checked;
+    scene.rebuild(sim);
+  }
+});
+$("ui-size").addEventListener("change", () => {
+  document.documentElement.style.setProperty(
+    "--ui-scale",
+    $<HTMLSelectElement>("ui-size").value,
+  );
+});
+
 function refresh() {
   const t = sim.time;
   $("time").textContent =
@@ -170,9 +229,10 @@ function refresh() {
   $("metrics").innerHTML = sim.agents
     .map((a) => {
       const m = sim.metrics(a);
-      return `<section class="agent-card ${a.kind.toLowerCase()}"><div class="agent-head"><h2>${a.kind}</h2><span>${a.kind === "Human" ? "LiDAR / ground" : "Echo / flight"}</span></div><div class="agent-state">${a.state}<span>${a.p.y.toFixed(1)} m altitude</span></div><div class="metric-primary"><strong>${m.coverage.toFixed(1)}<small>%</small></strong><span>SPACE EXPLORED</span></div><div class="progress"><i style="width:${Math.min(100, m.coverage)}%"></i></div><dl><dt>Mapping accuracy</dt><dd>${m.accuracy.toFixed(1)}%</dd><dt>Distance traveled</dt><dd>${m.distance.toFixed(1)} m</dd><dt>Collision attempts</dt><dd>${m.collisions}</dd><dt>Failed detections</dt><dd>${m.failed}</dd><dt>Mouse detections</dt><dd>${m.detections}</dd><dt>Landmarks</dt><dd>${m.landmarks}</dd><dt>False occupied / free</dt><dd>${m.falseOccupied} / ${m.falseFree}</dd><dt>Unknown voxels</dt><dd>${m.unknown}</dd><dt>Capture time</dt><dd>${m.captureTime === null ? "—" : m.captureTime.toFixed(2) + " s"}</dd></dl></section>`;
+      return `<section class="agent-card ${a.kind.toLowerCase()}"><div class="agent-head"><h2>${a.kind}</h2><span>${a.kind === "Human" ? "LiDAR / ground" : "Echo / flight"}</span></div><div class="agent-state">${a.state}<span>${a.p.y.toFixed(1)} m altitude</span></div><figure class="memory-plan"><canvas id="memory-${a.kind}" width="360" height="360" aria-label="${a.kind} observed ground slice"></canvas><figcaption>Own memory · ground slice 0–2 m<br>Blocks = occupied · pale = free · gray = unknown</figcaption></figure><div class="metric-primary"><strong>${m.coverage.toFixed(1)}<small>%</small></strong><span>SPACE EXPLORED</span></div><div class="progress"><i style="width:${Math.min(100, m.coverage)}%"></i></div><dl><dt>Mapping accuracy</dt><dd>${m.accuracy.toFixed(1)}%</dd><dt>Distance traveled</dt><dd>${m.distance.toFixed(1)} m</dd><dt>Collision attempts</dt><dd>${m.collisions}</dd><dt>Failed detections</dt><dd>${m.failed}</dd><dt>Mouse detections</dt><dd>${m.detections}</dd><dt>Landmarks</dt><dd>${m.landmarks}</dd><dt>False occupied / free</dt><dd>${m.falseOccupied} / ${m.falseFree}</dd><dt>Unknown voxels</dt><dd>${m.unknown}</dd><dt>Capture time</dt><dd>${m.captureTime === null ? "—" : m.captureTime.toFixed(2) + " s"}</dd></dl></section>`;
     })
     .join("");
+  drawMemoryPlans();
   $("mouse-status").textContent =
     `${sim.mouse.moving ? "Moving · emitting intermittent sound" : "Stationary · no new sound"} / ${sim.mouse.p.y.toFixed(1)} m altitude`;
   if (sim.winner) $("start").textContent = "↻ New experiment";

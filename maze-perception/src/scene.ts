@@ -25,6 +25,8 @@ export class Scene {
   mouse = new T.Group();
   map: T.InstancedMesh;
   cameraMode = "orbit";
+  knowledgeMode = "world";
+  cutaway = true;
   lastMap = "";
   sim: Simulation;
   constructor(
@@ -34,7 +36,10 @@ export class Scene {
     this.sim = sim;
     this.renderer = new T.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-    this.renderer.setClearColor(0x101a21);
+    this.renderer.setClearColor(0xdceef1);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = T.PCFSoftShadowMap;
+    this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     host.append(this.renderer.domElement);
     this.camera.position.set(43, 43, 47);
@@ -42,9 +47,19 @@ export class Scene {
     this.controls.target.set(15, 1.5, 15);
     this.controls.enableDamping = true;
     this.controls.maxPolarAngle = Math.PI * 0.49;
-    this.scene.add(new T.HemisphereLight(0xe1f6ff, 0x273427, 2));
+    this.scene.add(new T.HemisphereLight(0xfff7e5, 0xaaa4c6, 2.4));
     const light = new T.DirectionalLight(0xffffff, 2.5);
-    light.position.set(12, 30, 14);
+    light.position.set(-8, 35, 18);
+    light.castShadow = true;
+    light.shadow.mapSize.set(2048, 2048);
+    Object.assign(light.shadow.camera, {
+      left: -30,
+      right: 30,
+      top: 30,
+      bottom: -30,
+      far: 100,
+    });
+    light.shadow.normalBias = 0.08;
     this.scene.add(light);
     this.scene.add(
       this.environment,
@@ -56,9 +71,9 @@ export class Scene {
     this.map = new T.InstancedMesh(
       new T.BoxGeometry(0.7, 0.7, 0.7),
       new T.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0.48,
-        depthWrite: false,
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
       }),
       10800,
     );
@@ -66,6 +81,9 @@ export class Scene {
     this.scene.add(this.map);
     this.map.count = 0;
     this.makeActors();
+    this.labelActor(this.human, "HUMAN", "#1469c9", 1.5);
+    this.labelActor(this.bat, "BAT", "#c7631d", 0.8);
+    this.labelActor(this.mouse, "MOUSE", "#567c3d", 0.65);
     this.rebuild(sim);
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
@@ -83,8 +101,41 @@ export class Scene {
       new T.MeshStandardMaterial({ color, roughness: 0.7 }),
     );
     m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
     group.add(m);
     return m;
+  }
+  labelActor(group: T.Group, text: string, color: string, height: number) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#fffdf5";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.roundRect(4, 4, 504, 120, 24);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = "bold 66px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = color;
+    ctx.fillText(text, 256, 66);
+    const texture = new T.CanvasTexture(canvas);
+    texture.colorSpace = T.SRGBColorSpace;
+    const label = new T.Sprite(
+      new T.SpriteMaterial({
+        map: texture,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    label.scale.set(2.5, 0.625, 1);
+    label.position.set(0, height, 0);
+    label.renderOrder = 5;
+    group.add(label);
   }
   makeActors() {
     this.mesh(
@@ -196,34 +247,72 @@ export class Scene {
     this.lastMap = "";
     const floor = this.mesh(
       this.environment,
-      new T.BoxGeometry(30, 0.15, 30),
-      0x26353b,
+      new T.BoxGeometry(31, 0.4, 31),
+      0xc4bbd8,
       15,
       -0.12,
       15,
     );
     floor.receiveShadow = true;
-    const grid = new T.GridHelper(30, 30, 0x527078, 0x34474d);
+    const grid = new T.GridHelper(30, 30, 0xc5bcd6, 0xd0c8df);
     grid.position.set(15, 0.015, 15);
     this.environment.add(grid);
     for (const w of sim.world.walls) {
+      const displayHeight = this.cutaway ? Math.min(w.height, 1.6) : w.height;
       const m = this.mesh(
         this.environment,
-        new T.BoxGeometry(2, w.height, 2),
+        new T.BoxGeometry(1.96, displayHeight, 1.96),
         materials[w.material].color,
         w.x + 1,
-        w.height / 2,
+        displayHeight / 2,
         w.z + 1,
       );
-      (m.material as T.MeshStandardMaterial).transparent = true;
-      (m.material as T.MeshStandardMaterial).opacity =
-        w.height === 12 ? 0.12 : w.material === "glass" ? 0.23 : 0.43;
+      const material = m.material as T.MeshStandardMaterial;
+      material.transparent = w.material === "glass";
+      material.opacity = w.material === "glass" ? 0.27 : 1;
+      material.depthWrite = w.material !== "glass";
+      material.roughness = w.material === "metal" ? 0.28 : 0.85;
+      material.metalness = w.material === "metal" ? 0.45 : 0;
+      m.userData.materialType = w.material;
+      if (w.material === "glass") {
+        // A visible opaque frame distinguishes glass from empty passages.
+        for (const dx of [-0.92, 0.92])
+          this.mesh(
+            this.environment,
+            new T.BoxGeometry(0.1, displayHeight, 0.1),
+            0x407f9e,
+            w.x + 1 + dx,
+            displayHeight / 2,
+            w.z + 0.08,
+          );
+        this.mesh(
+          this.environment,
+          new T.BoxGeometry(2, 0.1, 0.1),
+          0x407f9e,
+          w.x + 1,
+          displayHeight,
+          w.z + 0.08,
+        );
+      } else {
+        this.mesh(
+          this.environment,
+          new T.BoxGeometry(2, 0.1, 2),
+          w.material === "foam"
+            ? 0xe4a3a3
+            : w.material === "metal"
+              ? 0xc7d5e3
+              : 0xffedcd,
+          w.x + 1,
+          displayHeight + 0.04,
+          w.z + 1,
+        );
+      }
       const edges = new T.LineSegments(
         new T.EdgesGeometry(m.geometry),
         new T.LineBasicMaterial({
           color: materials[w.material].color,
           transparent: true,
-          opacity: 0.55,
+          opacity: 0.18,
         }),
       );
       edges.position.copy(m.position);
@@ -232,7 +321,7 @@ export class Scene {
     this.mesh(
       this.environment,
       new T.BoxGeometry(4, 0.3, 6),
-      0x8a9b9f,
+      0xf2b779,
       11,
       3.85,
       6,
@@ -248,7 +337,7 @@ export class Scene {
     ramp.computeVertexNormals();
     const rm = new T.Mesh(
       ramp,
-      new T.MeshStandardMaterial({ color: 0x97b0b5, side: T.DoubleSide }),
+      new T.MeshStandardMaterial({ color: 0xf2c589, side: T.DoubleSide }),
     );
     this.environment.add(rm);
   }
@@ -325,8 +414,14 @@ export class Scene {
   update(layers: Layers) {
     const s = this.sim;
     this.clear(this.dynamic);
-    this.environment.visible = layers.geometry;
+    this.environment.visible =
+      layers.geometry && this.knowledgeMode === "world";
     this.map.visible = layers.maps;
+    this.human.visible =
+      this.knowledgeMode === "world" || this.knowledgeMode === "human";
+    this.bat.visible =
+      this.knowledgeMode === "world" || this.knowledgeMode === "bat";
+    this.mouse.visible = this.knowledgeMode === "world";
     this.human.position.copy(vec(s.agents[0].p));
     this.bat.position.copy(vec(s.agents[1].p));
     this.mouse.position.copy(vec(s.mouse.p));
@@ -334,6 +429,12 @@ export class Scene {
     this.bat.rotation.y = -s.agents[1].heading;
     this.mouse.rotation.y = -s.mouse.heading;
     for (const [i, a] of s.agents.entries()) {
+      if (
+        (this.knowledgeMode === "human" && i !== 0) ||
+        (this.knowledgeMode === "bat" && i !== 1) ||
+        this.knowledgeMode === "overlap"
+      )
+        continue;
       const color = i ? 0xffa252 : 0x54b3ff;
       const age = s.time - a.scanTime,
         interval = i ? s.config.echoInterval : s.config.lidarInterval;
@@ -399,7 +500,7 @@ export class Scene {
           );
         }
     }
-    if (layers.sound)
+    if (layers.sound && this.knowledgeMode === "world")
       for (const sound of s.sounds)
         this.ring(
           sound.p,
@@ -407,9 +508,12 @@ export class Scene {
           0xb5d8a2,
           Math.max(0, 0.5 - (s.time - sound.time) * 0.6),
         );
-    const mapRevision = s.agents
-      .map((a) => `${a.scanTime}:${a.memory.cells.size}:${a.collisions}`)
-      .join("/");
+    const mapRevision =
+      s.agents
+        .map((a) => `${a.scanTime}:${a.memory.cells.size}:${a.collisions}`)
+        .join("/") +
+      this.knowledgeMode +
+      this.cutaway;
     if (layers.maps && mapRevision !== this.lastMap) {
       this.lastMap = mapRevision;
       const union = new Set([
@@ -419,23 +523,60 @@ export class Scene {
       const matrix = new T.Matrix4();
       let n = 0;
       for (const k of union) {
+        if (this.knowledgeMode === "human" && !s.agents[0].memory.cells.has(k))
+          continue;
+        if (this.knowledgeMode === "bat" && !s.agents[1].memory.cells.has(k))
+          continue;
+        if (
+          this.knowledgeMode === "overlap" &&
+          !s.agents.every((a) => a.memory.cells.has(k))
+        )
+          continue;
         const h = s.agents[0].memory.cells.has(k),
           b = s.agents[1].memory.cells.has(k),
           p = center(k),
-          occupied = s.agents.some((a) => a.memory.cells.get(k) === 1),
-          current = s.agents.some((a) => a.memory.current.has(k));
+          occupied = s.agents
+            .filter((_, i) =>
+              this.knowledgeMode === "human"
+                ? i === 0
+                : this.knowledgeMode === "bat"
+                  ? i === 1
+                  : true,
+            )
+            .some((a) => a.memory.cells.get(k) === 1),
+          current = s.agents
+            .filter((_, i) =>
+              this.knowledgeMode === "human"
+                ? i === 0
+                : this.knowledgeMode === "bat"
+                  ? i === 1
+                  : true,
+            )
+            .some((a) => a.memory.current.has(k));
+        if (this.knowledgeMode === "world" && p.y > 1.5) continue;
+        if (this.knowledgeMode !== "world" && !occupied && p.y > 0.5) continue;
         matrix.compose(
           vec(p),
           new T.Quaternion(),
           new T.Vector3(
-            occupied ? 0.8 : 0.18,
-            occupied ? 0.8 : 0.18,
-            occupied ? 0.8 : 0.18,
+            occupied ? 0.88 : 0.92,
+            occupied ? 0.88 : 0.06,
+            occupied ? 0.88 : 0.92,
           ),
         );
         this.map.setMatrixAt(n, matrix);
-        const color = new T.Color(h && b ? 0xb48cff : h ? 0x4baeff : 0xffa05a);
-        if (!current) color.multiplyScalar(0.48);
+        const color = new T.Color(
+          this.knowledgeMode === "human"
+            ? 0x0865df
+            : this.knowledgeMode === "bat"
+              ? 0xe77312
+              : h && b
+                ? 0x8c35cb
+                : h
+                  ? 0x0865df
+                  : 0xe77312,
+        );
+        if (!current) color.lerp(new T.Color(0xffffff), 0.22);
         this.map.setColorAt(n, color);
         n++;
       }

@@ -38,3 +38,11 @@ Export JSON includes the seed, settings, coefficient table, outcome, each agent'
 ## Source organization
 
 `world.ts`: seeded geometry, materials, collision. `simulation.ts`: sensors, hearing, mouse, state machine, fixed updates, capture and metrics. `mapping.ts`: independent voxel memory and evaluation. `navigation.ts`: memory-only pathfinding. `scene.ts`: Three.js actors, camera, material geometry and map/sensor overlays. `main.ts`: controls and dashboard. `tests/`: model invariants and production browser interactions. The supplied source specification is retained in `SIMULATION_SPEC.md`.
+
+## Display modes and readability
+
+The pastel diorama style uses opaque concrete, pink acoustic foam and blue metal; only framed glass is transparent. Low walls is a display-only cutaway: full physical heights remain unchanged for sensing and collisions. Turn it off to inspect actual wall heights.
+
+The All / Human / Bat / Shared toggle selects the displayed knowledge without resetting the simulation. Human and Bat modes hide physical truth, the other agent, and the mouse; they render only the selected map's occupied cells and observed ground cells. Shared shows only voxels recorded by both agents. These views do not modify the actual maps. Independent dashboard plans show the 0–2 m slice of each agent's memory: strong blocks are occupied, pale tiles free, and gray unknown. Higher occupied voxels remain available in individual 3D views.
+
+UI size defaults to 300% of the previous release and can be set to 100% or 200% in the header. Mobile layouts use a readable fixed size to prevent horizontal clipping. Header links jump to Controls and Agent maps when panels stack below the scene.

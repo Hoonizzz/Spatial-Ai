@@ -44,6 +44,27 @@ with sync_playwright() as p:
     for mode in ['top', 'follow-human', 'follow-bat', 'follow-mouse', 'orbit']:
         page.locator('#camera').select_option(mode)
         assert page.evaluate('mazeTest.scene.cameraMode') == mode
+    # Physical transparency reflects material identity, never an x-ray shortcut.
+    assert page.evaluate('mazeTest.scene.environment.children.filter(o=>o.userData.materialType).every(o=>o.userData.materialType === "glass" ? o.material.transparent && o.material.opacity < 1 : !o.material.transparent && o.material.opacity === 1)')
+    snapshot = page.evaluate('JSON.stringify(mazeTest.sim.export())')
+    for mode in ['human', 'bat', 'overlap', 'world']:
+        page.locator('[data-knowledge="'+mode+'"]').click()
+        page.wait_for_function('(mode)=>mazeTest.scene.knowledgeMode===mode && mazeTest.scene.environment.visible===(mode==="world")', arg=mode)
+        assert page.locator('[data-knowledge="'+mode+'"]').get_attribute('aria-pressed') == 'true'
+        assert page.evaluate('JSON.stringify(mazeTest.sim.export())') == snapshot
+        if mode != 'world':
+            assert page.evaluate('!mazeTest.scene.mouse.visible')
+        if mode == 'human':
+            assert page.evaluate('mazeTest.scene.human.visible && !mazeTest.scene.bat.visible')
+        if mode == 'bat':
+            assert page.evaluate('mazeTest.scene.bat.visible && !mazeTest.scene.human.visible')
+    assert page.locator('#memory-Human').count() == 1
+    assert page.locator('#memory-Bat').count() == 1
+    physical_heights = page.evaluate('mazeTest.sim.world.walls.map(w=>w.height)')
+    page.locator('#cutaway').uncheck()
+    assert page.evaluate('mazeTest.sim.world.walls.map(w=>w.height)') == physical_heights
+    page.locator('#cutaway').check()
+    assert page.locator('#ui-size').input_value() == '3'
     for layer in ['geometry', 'maps', 'rays', 'pulses', 'sound', 'range', 'trails', 'landmarks']:
         page.locator('#layer-' + layer).set_checked(False)
         page.locator('#layer-' + layer).set_checked(True)

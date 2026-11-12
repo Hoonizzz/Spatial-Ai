@@ -5,15 +5,15 @@ export const materials: Record<
   Material,
   { optical: number; reflection: number; absorption: number; color: number }
 > = {
-  foam: { optical: 0.95, reflection: 0.15, absorption: 0.85, color: 0x596578 },
-  glass: { optical: 0.3, reflection: 0.85, absorption: 0.12, color: 0x91d8df },
+  foam: { optical: 0.95, reflection: 0.15, absorption: 0.85, color: 0xd68c91 },
+  glass: { optical: 0.3, reflection: 0.85, absorption: 0.12, color: 0x8fd5e8 },
   concrete: {
     optical: 0.95,
     reflection: 0.8,
     absorption: 0.2,
-    color: 0x92958b,
+    color: 0xf2dbb5,
   },
-  metal: { optical: 0.85, reflection: 0.9, absorption: 0.08, color: 0xb3b4cd },
+  metal: { optical: 0.85, reflection: 0.9, absorption: 0.08, color: 0x9bafc9 },
 };
 export class RNG {
   constructor(public state: number) {}
