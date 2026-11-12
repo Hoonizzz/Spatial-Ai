@@ -1,3 +1,4 @@
+import { MAZE_HEIGHT } from "./world";
 import {
   World,
   RNG,
@@ -130,7 +131,7 @@ export class Simulation {
     this.mouse.p = { x: mx * 2 + 1, y: 0.35, z: mz * 2 + 1 };
     this.mouse.goal = { ...this.mouse.p };
     for (let x = 0; x < 30; x++)
-      for (let y = 0; y < 12; y++)
+      for (let y = 0; y < MAZE_HEIGHT; y++)
         for (let z = 0; z < 30; z++)
           if (!this.world.solid({ x: x + 0.5, y: y + 0.5, z: z + 0.5 }))
             this.freeCells++;

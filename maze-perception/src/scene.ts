@@ -1,7 +1,12 @@
 import * as T from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Simulation, type Agent } from "./simulation";
-import { materials, center, type V } from "./world";
+import { materials, type V } from "./world";
+import {
+  buildRegionSurface,
+  selectRegionCells,
+  type KnowledgeMode,
+} from "./regions";
 export type Layers = {
   rays: boolean;
   pulses: boolean;
@@ -23,10 +28,11 @@ export class Scene {
   human = new T.Group();
   bat = new T.Group();
   mouse = new T.Group();
-  map: T.InstancedMesh;
+  map = Object.assign(new T.Group(), { count: 0 });
   cameraMode = "orbit";
-  knowledgeMode = "world";
+  knowledgeMode: KnowledgeMode = "world";
   cutaway = true;
+  showMemory = false;
   lastMap = "";
   sim: Simulation;
   constructor(
@@ -42,14 +48,14 @@ export class Scene {
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     host.append(this.renderer.domElement);
-    this.camera.position.set(43, 43, 47);
+    this.camera.position.set(65, 80, 70);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(15, 1.5, 15);
+    this.controls.target.set(15, 18, 15);
     this.controls.enableDamping = true;
     this.controls.maxPolarAngle = Math.PI * 0.49;
     this.scene.add(new T.HemisphereLight(0xfff7e5, 0xaaa4c6, 2.4));
     const light = new T.DirectionalLight(0xffffff, 2.5);
-    light.position.set(-8, 35, 18);
+    light.position.set(-8, 65, 18);
     light.castShadow = true;
     light.shadow.mapSize.set(2048, 2048);
     Object.assign(light.shadow.camera, {
@@ -57,7 +63,7 @@ export class Scene {
       right: 30,
       top: 30,
       bottom: -30,
-      far: 100,
+      far: 150,
     });
     light.shadow.normalBias = 0.08;
     this.scene.add(light);
@@ -68,18 +74,7 @@ export class Scene {
       this.bat,
       this.mouse,
     );
-    this.map = new T.InstancedMesh(
-      new T.BoxGeometry(0.7, 0.7, 0.7),
-      new T.MeshBasicMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-      }),
-      10800,
-    );
-    this.map.instanceMatrix.setUsage(T.DynamicDrawUsage);
     this.scene.add(this.map);
-    this.map.count = 0;
     this.makeActors();
     this.labelActor(this.human, "HUMAN", "#1469c9", 1.5);
     this.labelActor(this.bat, "BAT", "#c7631d", 0.8);
@@ -87,6 +82,7 @@ export class Scene {
     this.rebuild(sim);
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
+    this.frameScene();
   }
   mesh(
     group: T.Group,
@@ -250,7 +246,7 @@ export class Scene {
       new T.BoxGeometry(31, 0.4, 31),
       0xc4bbd8,
       15,
-      -0.12,
+      -0.2,
       15,
     );
     floor.receiveShadow = true;
@@ -258,7 +254,8 @@ export class Scene {
     grid.position.set(15, 0.015, 15);
     this.environment.add(grid);
     for (const w of sim.world.walls) {
-      const displayHeight = this.cutaway ? Math.min(w.height, 1.6) : w.height;
+      const frontBoundary = w.x === 28 || w.z === 28;
+      const displayHeight = this.cutaway && frontBoundary ? 4 : w.height;
       const m = this.mesh(
         this.environment,
         new T.BoxGeometry(1.96, displayHeight, 1.96),
@@ -469,21 +466,6 @@ export class Scene {
           color,
           0.5 * (1 - age / interval),
         );
-        const hits = a.rays.filter((r) => r.hit);
-        const g = new T.BufferGeometry().setFromPoints(
-          hits.map((r) => vec(r.b)),
-        );
-        this.dynamic.add(
-          new T.Points(
-            g,
-            new T.PointsMaterial({
-              color,
-              size: 0.15,
-              transparent: true,
-              opacity: 1 - age / interval,
-            }),
-          ),
-        );
       }
       if (layers.trails) this.line(a.trail, color, 0.7);
       if (layers.landmarks)
@@ -513,77 +495,53 @@ export class Scene {
         .map((a) => `${a.scanTime}:${a.memory.cells.size}:${a.collisions}`)
         .join("/") +
       this.knowledgeMode +
-      this.cutaway;
+      this.cutaway +
+      this.showMemory;
     if (layers.maps && mapRevision !== this.lastMap) {
       this.lastMap = mapRevision;
-      const union = new Set([
-        ...s.agents[0].memory.cells.keys(),
-        ...s.agents[1].memory.cells.keys(),
-      ]);
-      const matrix = new T.Matrix4();
-      let n = 0;
-      for (const k of union) {
-        if (this.knowledgeMode === "human" && !s.agents[0].memory.cells.has(k))
-          continue;
-        if (this.knowledgeMode === "bat" && !s.agents[1].memory.cells.has(k))
-          continue;
-        if (
-          this.knowledgeMode === "overlap" &&
-          !s.agents.every((a) => a.memory.cells.has(k))
-        )
-          continue;
-        const h = s.agents[0].memory.cells.has(k),
-          b = s.agents[1].memory.cells.has(k),
-          p = center(k),
-          occupied = s.agents
-            .filter((_, i) =>
-              this.knowledgeMode === "human"
-                ? i === 0
-                : this.knowledgeMode === "bat"
-                  ? i === 1
-                  : true,
-            )
-            .some((a) => a.memory.cells.get(k) === 1),
-          current = s.agents
-            .filter((_, i) =>
-              this.knowledgeMode === "human"
-                ? i === 0
-                : this.knowledgeMode === "bat"
-                  ? i === 1
-                  : true,
-            )
-            .some((a) => a.memory.current.has(k));
-        if (this.knowledgeMode === "world" && p.y > 1.5) continue;
-        if (this.knowledgeMode !== "world" && !occupied && p.y > 0.5) continue;
-        matrix.compose(
-          vec(p),
-          new T.Quaternion(),
-          new T.Vector3(
-            occupied ? 0.88 : 0.92,
-            occupied ? 0.88 : 0.06,
-            occupied ? 0.88 : 0.92,
-          ),
+      const cells = selectRegionCells(
+        s.agents.map((a) => a.memory),
+        this.knowledgeMode,
+        !this.showMemory,
+      );
+      this.clear(this.map);
+      for (const occupied of [true, false]) {
+        const surface = buildRegionSurface(cells, occupied);
+        if (!surface.positions.length) continue;
+        const geometry = new T.BufferGeometry();
+        geometry.setAttribute(
+          "position",
+          new T.Float32BufferAttribute(surface.positions, 3),
         );
-        this.map.setMatrixAt(n, matrix);
-        const color = new T.Color(
-          this.knowledgeMode === "human"
-            ? 0x0865df
-            : this.knowledgeMode === "bat"
-              ? 0xe77312
-              : h && b
-                ? 0x8c35cb
-                : h
-                  ? 0x0865df
-                  : 0xe77312,
+        // Palette RGB values are sRGB; vertex attributes must be linear.
+        const colors = [];
+        for (let i = 0; i < surface.colors.length; i += 3) {
+          const color = new T.Color().setRGB(
+            surface.colors[i],
+            surface.colors[i + 1],
+            surface.colors[i + 2],
+            T.SRGBColorSpace,
+          );
+          colors.push(color.r, color.g, color.b);
+        }
+        geometry.setAttribute("color", new T.Float32BufferAttribute(colors, 3));
+        const mesh = new T.Mesh(
+          geometry,
+          new T.MeshBasicMaterial({
+            vertexColors: true,
+            side: T.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+          }),
         );
-        if (!current) color.lerp(new T.Color(0xffffff), 0.22);
-        this.map.setColorAt(n, color);
-        n++;
+        mesh.userData.region = occupied ? "occupied" : "ground-free";
+        mesh.userData.rectangles = surface.rectangles;
+        this.map.add(mesh);
       }
-      this.map.count = n;
-      this.map.instanceMatrix.needsUpdate = true;
-      if (this.map.instanceColor) this.map.instanceColor.needsUpdate = true;
-      this.map.computeBoundingSphere();
+      this.map.count = [...cells].filter(
+        ([k, c]) => c.occupied || k.split(",")[1] === "0",
+      ).length;
     }
     if (this.cameraMode.startsWith("follow")) {
       const p =
@@ -597,17 +555,58 @@ export class Scene {
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
+  frameScene() {
+    if (this.cameraMode !== "orbit" && this.cameraMode !== "top") return;
+    let bounds = new T.Box3(new T.Vector3(0, 0, 0), new T.Vector3(30, 36, 30));
+    if (this.knowledgeMode !== "world") {
+      bounds = new T.Box3();
+      const cells = selectRegionCells(
+        this.sim.agents.map((a) => a.memory),
+        this.knowledgeMode,
+        !this.showMemory,
+      );
+      for (const [k, c] of cells) {
+        const [x, y, z] = k.split(",").map(Number);
+        if (!c.occupied && y !== 0) continue;
+        bounds.expandByPoint(new T.Vector3(x, y, z));
+        bounds.expandByPoint(new T.Vector3(x + 1, y + 1, z + 1));
+      }
+      if (bounds.isEmpty()) {
+        const p = this.sim.agents[this.knowledgeMode === "bat" ? 1 : 0].p;
+        bounds.setFromCenterAndSize(vec(p), new T.Vector3(6, 6, 6));
+      }
+    }
+    const center = bounds.getCenter(new T.Vector3()),
+      radius = bounds.getSize(new T.Vector3()).length() / 2;
+    const halfAngle = Math.atan(
+      Math.tan(T.MathUtils.degToRad(this.camera.fov / 2)) *
+        Math.min(1, this.camera.aspect),
+    );
+    const distance = Math.max(12, (radius / Math.sin(halfAngle)) * 1.08);
+    const direction = this.camera.position
+      .clone()
+      .sub(this.controls.target)
+      .normalize();
+    this.controls.target.copy(center);
+    this.camera.position.copy(center).addScaledVector(direction, distance);
+    this.controls.update();
+  }
+  setKnowledgeMode(mode: KnowledgeMode) {
+    this.knowledgeMode = mode;
+    this.frameScene();
+  }
   setCamera(mode: string) {
     this.cameraMode = mode;
     if (mode === "top") {
       this.controls.target.set(15, 0, 15);
-      this.camera.position.set(15, 58, 15.01);
+      this.camera.position.set(15, 88, 15.01);
     } else if (mode === "orbit") {
-      this.controls.target.set(15, 1.5, 15);
-      this.camera.position.set(43, 43, 47);
+      this.controls.target.set(15, 18, 15);
+      this.camera.position.set(65, 80, 70);
     } else {
-      this.camera.position.set(24, 22, 24);
+      this.camera.position.set(40, 45, 40);
     }
+    this.frameScene();
     this.controls.update();
   }
 }

@@ -49,7 +49,7 @@ with sync_playwright() as p:
     snapshot = page.evaluate('JSON.stringify(mazeTest.sim.export())')
     for mode in ['human', 'bat', 'overlap', 'world']:
         page.locator('[data-knowledge="'+mode+'"]').click()
-        page.wait_for_function('(mode)=>mazeTest.scene.knowledgeMode===mode && mazeTest.scene.environment.visible===(mode==="world")', arg=mode)
+        page.wait_for_function('(mode)=>mazeTest.scene.knowledgeMode===mode && mazeTest.scene.environment.visible===(mode==="world") && (mode==="human" ? mazeTest.scene.human.visible && !mazeTest.scene.bat.visible : mode==="bat" ? mazeTest.scene.bat.visible && !mazeTest.scene.human.visible : true)', arg=mode)
         assert page.locator('[data-knowledge="'+mode+'"]').get_attribute('aria-pressed') == 'true'
         assert page.evaluate('JSON.stringify(mazeTest.sim.export())') == snapshot
         if mode != 'world':
@@ -58,6 +58,14 @@ with sync_playwright() as p:
             assert page.evaluate('mazeTest.scene.human.visible && !mazeTest.scene.bat.visible')
         if mode == 'bat':
             assert page.evaluate('mazeTest.scene.bat.visible && !mazeTest.scene.human.visible')
+    assert page.evaluate('mazeTest.sim.world.walls.some(w=>w.height===36) && mazeTest.sim.world.walls.every(w=>w.height>=6)')
+    assert page.evaluate('mazeTest.scene.map.children.every(m=>m.isMesh && !m.isInstancedMesh)')
+    assert not page.locator('#map-memory').is_checked()
+    page.locator('#map-memory').check()
+    page.wait_for_function('mazeTest.scene.showMemory')
+    assert 'ACCUMULATED' in page.locator('.view-caption').inner_text()
+    assert page.evaluate('JSON.stringify(mazeTest.sim.export())') == snapshot
+    page.locator('#map-memory').uncheck()
     assert page.locator('#memory-Human').count() == 1
     assert page.locator('#memory-Bat').count() == 1
     physical_heights = page.evaluate('mazeTest.sim.world.walls.map(w=>w.height)')

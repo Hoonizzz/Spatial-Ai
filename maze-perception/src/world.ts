@@ -1,3 +1,5 @@
+export const MAZE_HEIGHT = 36;
+export const VOXEL_COUNT = 30 * 30 * MAZE_HEIGHT;
 export type V = { x: number; y: number; z: number };
 export type Material = "foam" | "glass" | "concrete" | "metal";
 export type Environment = "A" | "B" | "C";
@@ -79,8 +81,8 @@ export class World {
         if (!this.open.has(`${x},${z}`)) {
           const height =
             x === 0 || z === 0 || x === 14 || z === 14
-              ? 12
-              : r.pick([2, 4, 6, 8, 10]);
+              ? MAZE_HEIGHT
+              : r.pick([6, 12, 18, 24, 30]);
           const w: Wall = { x: x * 2, z: z * 2, height, material: "concrete" };
           this.walls.push(w);
           this.tiles.set(`${x},${z}`, w);
@@ -124,7 +126,14 @@ export class World {
     return 0;
   }
   solid(p: V): Material | null {
-    if (p.x < 0 || p.x >= 30 || p.z < 0 || p.z >= 30 || p.y < 0 || p.y >= 12)
+    if (
+      p.x < 0 ||
+      p.x >= 30 ||
+      p.z < 0 ||
+      p.z >= 30 ||
+      p.y < 0 ||
+      p.y >= MAZE_HEIGHT
+    )
       return "concrete";
     const wall = this.tiles.get(
       `${Math.floor(p.x / 2)},${Math.floor(p.z / 2)}`,

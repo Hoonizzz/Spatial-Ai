@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Simulation, defaults } from "../src/simulation";
-import { World, dist, center, key, materials } from "../src/world";
+import {
+  MAZE_HEIGHT,
+  VOXEL_COUNT,
+  World,
+  dist,
+  center,
+  key,
+  materials,
+} from "../src/world";
 import { Memory } from "../src/mapping";
 import { plan } from "../src/navigation";
 
@@ -216,7 +224,7 @@ test("accuracy is separate from coverage and reports classification errors", () 
   const result = m.metrics(w);
   assert.equal(result.falseFree, 1);
   assert.equal(result.falseOccupied, 1);
-  assert.equal(result.unknown, 10798);
+  assert.equal(result.unknown, VOXEL_COUNT - 2);
   assert.equal(result.accuracy, 0);
 });
 test("fixed step run is reproducible, agents move, maps grow and physical bodies stay clear", () => {

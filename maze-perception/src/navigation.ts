@@ -1,5 +1,5 @@
 import { Memory } from "./mapping";
-import { dist, key, type V } from "./world";
+import { MAZE_HEIGHT, dist, key, type V } from "./world";
 // Planner deliberately receives memory only, never the physical world.
 export function plan(
   memory: Memory,
@@ -64,7 +64,7 @@ export function plan(
         q.x > 29 ||
         q.z > 29 ||
         q.y < 0.4 ||
-        q.y > 11 ||
+        q.y > MAZE_HEIGHT - 1 ||
         (!flying && Math.abs(q.y - p.y) > 1.1)
       )
         continue;

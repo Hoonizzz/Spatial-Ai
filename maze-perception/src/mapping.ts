@@ -1,4 +1,4 @@
-import { center, key, type V, World } from "./world";
+import { MAZE_HEIGHT, VOXEL_COUNT, center, key, type V, World } from "./world";
 export class Memory {
   cells = new Map<string, 0 | 1>();
   current = new Set<string>();
@@ -14,7 +14,14 @@ export class Memory {
         y: origin.y + ((end.y - origin.y) * t) / d,
         z: origin.z + ((end.z - origin.z) * t) / d,
       };
-      if (p.x < 0 || p.z < 0 || p.y < 0 || p.x >= 30 || p.z >= 30 || p.y >= 12)
+      if (
+        p.x < 0 ||
+        p.z < 0 ||
+        p.y < 0 ||
+        p.x >= 30 ||
+        p.z >= 30 ||
+        p.y >= MAZE_HEIGHT
+      )
         continue;
       const k = key(p);
       this.cells.set(k, 0);
@@ -27,7 +34,7 @@ export class Memory {
       end.y >= 0 &&
       end.x < 30 &&
       end.z < 30 &&
-      end.y < 12
+      end.y < MAZE_HEIGHT
     ) {
       const k = key(end);
       this.cells.set(k, 1);
@@ -60,7 +67,7 @@ export class Memory {
       correct,
       falseOccupied,
       falseFree,
-      unknown: 10800 - this.cells.size,
+      unknown: VOXEL_COUNT - this.cells.size,
       observedFree,
     };
   }
