@@ -1,22 +1,28 @@
-# Spatial-Ai · Office Hierarchy
+# Spatial-Ai · Perception in a Maze
 
-GitHub Pages 메인 주소에서 **Office Hierarchy 사무실 시뮬레이션이 바로 실행됩니다.**
+메인 페이지에서 **인간 LiDAR와 박쥐 반향정위의 3D 미로 탐색 시뮬레이션**이 실행됩니다.
 
 - 메인 페이지: https://hoonizzz.github.io/Spatial-Ai/
-- 616㎡ 사무실의 직급별 인원수 조절, 블록형 3D 에이전트, 고화질·전체 시야 표시, 예측 이동 회피, 화장실·회의실·라운지 회피 및 시나리오 비교
-- [설치·모델·검증 안내](office-hierarchy-sim/README.md)
-- [원본 구현 명세](office-hierarchy-sim/docs/SIMULATION_SPEC.md)
+- 동일한 미로에서 A/B/C 재질 실험, 독립 복셀 지도, 유한 범위 센서, 이동 중인 쥐의 소리와 포획 비교
+- [설치·조작·모델·검증 안내](maze-perception/README.md)
+- [사용자가 제공한 원본 명세](maze-perception/SIMULATION_SPEC.md)
 
 ```sh
-cd office-hierarchy-sim
+cd maze-perception
 npm ci
-npm run build
 npm test
+npm run build
 ```
 
-빌드 시 `office-hierarchy-sim/dist/`와 저장소 루트 `index.html`이 함께 갱신됩니다. 두 배포 파일을 함께 커밋하면 됩니다. 저장소 루트에서 `python3 -m http.server 8000`으로 실행할 수 있습니다. 외부 API 없이 동작합니다.
+빌드는 `maze-perception/dist/`와 루트 `index.html`을 함께 갱신합니다. 저장소 루트에서 `python3 -m http.server 8000`으로 실행할 수 있습니다. 외부 API나 키 없이 동작합니다.
 
-기존 [센트럴파크](central-park/dist/)와 [SoHo](soho.html)는 별도 경로에 보관되어 있습니다.
+기존 앱도 보존되어 있습니다.
+
+- [Office Hierarchy](office-hierarchy-sim/dist/) · [개발 안내](office-hierarchy-sim/README.md)
+- [Central Park](central-park/dist/)
+- [SoHo](soho.html)
+
+Office의 기존 `npm run build`는 루트 홈페이지를 Office로 덮어쓰므로, Office를 빌드한 뒤에도 메인 앱을 유지하려면 `maze-perception`에서 다시 빌드하세요.
 
 ---
 
