@@ -1,5 +1,5 @@
 :root {
-  --ui-scale: 3;
+  --ui-scale: 1.5;
   font-family:
     Inter,
     ui-sans-serif,
@@ -680,7 +680,7 @@ input[type="checkbox"] {
     letter-spacing: 0.04em;
   }
 }
-/* Pastel miniature workspace; 300% of the previous release by default. */
+/* Pastel miniature workspace; 150% baseline: half of the previous default UI size. */
 header {
   height: auto;
   min-height: 110px;
@@ -942,7 +942,7 @@ dl {
 }
 @media (max-width: 800px) {
   :root {
-    font-size: 28px;
+    font-size: 20px;
   }
   header {
     padding: 18px;

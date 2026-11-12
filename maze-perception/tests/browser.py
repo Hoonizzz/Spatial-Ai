@@ -64,7 +64,7 @@ with sync_playwright() as p:
     page.locator('#cutaway').uncheck()
     assert page.evaluate('mazeTest.sim.world.walls.map(w=>w.height)') == physical_heights
     page.locator('#cutaway').check()
-    assert page.locator('#ui-size').input_value() == '3'
+    assert page.locator('#ui-size').input_value() == '1.5'
     for layer in ['geometry', 'maps', 'rays', 'pulses', 'sound', 'range', 'trails', 'landmarks']:
         page.locator('#layer-' + layer).set_checked(False)
         page.locator('#layer-' + layer).set_checked(True)

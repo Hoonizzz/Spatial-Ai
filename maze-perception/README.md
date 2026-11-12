@@ -45,4 +45,4 @@ The pastel diorama style uses opaque concrete, pink acoustic foam and blue metal
 
 The All / Human / Bat / Shared toggle selects the displayed knowledge without resetting the simulation. Human and Bat modes hide physical truth, the other agent, and the mouse; they render only the selected map's occupied cells and observed ground cells. Shared shows only voxels recorded by both agents. These views do not modify the actual maps. Independent dashboard plans show the 0–2 m slice of each agent's memory: strong blocks are occupied, pale tiles free, and gray unknown. Higher occupied voxels remain available in individual 3D views.
 
-UI size defaults to 300% of the previous release and can be set to 100% or 200% in the header. Mobile layouts use a readable fixed size to prevent horizontal clipping. Header links jump to Controls and Agent maps when panels stack below the scene.
+UI size defaults to 150%, half of the former 300% default. The header offers 100%, 150%, 200% and 300%. Mobile layouts use a readable fixed size to prevent horizontal clipping. Header links jump to Controls and Agent maps when panels stack below the scene.
