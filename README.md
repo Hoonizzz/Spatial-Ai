@@ -1,9 +1,9 @@
 # Spatial-Ai · Perception in a Maze
 
-메인 페이지에서 **인간 LiDAR와 박쥐 반향정위의 3D 미로 탐색 시뮬레이션**이 실행됩니다.
+메인 페이지에서 **인간 LiDAR와 박쥐 반향정위의 2D 평면 미로 탐색 시뮬레이션**이 실행됩니다.
 
 - 메인 페이지: https://hoonizzz.github.io/Spatial-Ai/
-- 동일한 미로에서 A/B/C 재질 실험, 독립 복셀 지도, 유한 범위 센서, 이동 중인 쥐의 소리와 포획 비교
+- 동일한 미로에서 A/B/C 재질 실험, 독립 평면 지도, 유한 범위 센서, 이동 중인 쥐의 소리와 포획 비교
 - [설치·조작·모델·검증 안내](maze-perception/README.md)
 - [사용자가 제공한 원본 명세](maze-perception/SIMULATION_SPEC.md)
 

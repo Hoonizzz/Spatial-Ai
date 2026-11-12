@@ -1,4 +1,4 @@
-export const MAZE_HEIGHT = 36;
+export const MAZE_HEIGHT = 1;
 export const VOXEL_COUNT = 30 * 30 * MAZE_HEIGHT;
 export type V = { x: number; y: number; z: number };
 export type Material = "foam" | "glass" | "concrete" | "metal";
@@ -73,16 +73,13 @@ export class World {
       this.open.add(`${(a + x) / 2},${(b + z) / 2}`);
       stack.push([a, b]);
     }
-    // A connected chamber contains a physical ramp and raised deck.
+    // An open chamber connects into the same single-plane maze.
     for (let x = 1; x <= 6; x++)
       for (let z = 1; z <= 5; z++) this.open.add(`${x},${z}`);
     for (let x = 0; x < 15; x++)
       for (let z = 0; z < 15; z++)
         if (!this.open.has(`${x},${z}`)) {
-          const height =
-            x === 0 || z === 0 || x === 14 || z === 14
-              ? MAZE_HEIGHT
-              : r.pick([6, 12, 18, 24, 30]);
+          const height = 1;
           const w: Wall = { x: x * 2, z: z * 2, height, material: "concrete" };
           this.walls.push(w);
           this.tiles.set(`${x},${z}`, w);
@@ -120,11 +117,6 @@ export class World {
                   : "metal";
     }
   }
-  surface(x: number, z: number) {
-    if (x >= 3 && x < 9 && z >= 3 && z < 5) return ((x - 3) * 2) / 3;
-    if (x >= 9 && x < 13 && z >= 3 && z < 9) return 4;
-    return 0;
-  }
   solid(p: V): Material | null {
     if (
       p.x < 0 ||
@@ -139,16 +131,6 @@ export class World {
       `${Math.floor(p.x / 2)},${Math.floor(p.z / 2)}`,
     );
     if (wall && p.y < wall.height) return wall.material;
-    if (
-      p.x >= 3 &&
-      p.x < 9 &&
-      p.z >= 3 &&
-      p.z < 5 &&
-      p.y < this.surface(p.x, p.z)
-    )
-      return "concrete";
-    if (p.x >= 9 && p.x < 13 && p.z >= 3 && p.z < 9 && p.y >= 3.7 && p.y < 4)
-      return "metal";
     return null;
   }
   clear(p: V, r = 0.22) {

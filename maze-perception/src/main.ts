@@ -8,9 +8,9 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
 const config = defaults();
 let sim = new Simulation({ ...config });
 const layers: Layers = {
-  rays: true,
-  pulses: true,
-  sound: true,
+  rays: false,
+  pulses: false,
+  sound: false,
   range: false,
   maps: true,
   trails: true,
@@ -28,9 +28,7 @@ const advanced: [keyof Config, string, number, number, number][] = [
   ["lidarNoise", "LiDAR noise (m)", 0, 0.5, 0.005],
   ["echoNoise", "Echo noise (m)", 0, 1, 0.01],
   ["lidarFov", "LiDAR horizontal FOV", 30, 360, 5],
-  ["lidarVertical", "LiDAR vertical FOV", 10, 180, 5],
   ["echoFov", "Echo horizontal FOV", 30, 360, 5],
-  ["echoVertical", "Echo vertical FOV", 10, 180, 5],
   ["echoThreshold", "Echo threshold", 0.005, 0.5, 0.005],
   ["humanSpeed", "Human speed (m/s)", 0.2, 5, 0.1],
   ["batSpeed", "Bat speed (m/s)", 0.2, 8, 0.1],
@@ -52,12 +50,12 @@ document.querySelector("#app")!.innerHTML = `
    .join("")}</details></section>
  <section><div class="section-title"><b>03</b> Display layers</div><div class="toggles">${Object.entries(
    {
-     geometry: "Full maze geometry",
-     maps: "Accumulated + current maps",
+     geometry: "Maze materials",
+     maps: "Perceived regions",
      rays: "LiDAR scan rays",
      pulses: "Active echo pulses",
      sound: "Mouse sound events",
-     range: "Sensor range envelopes",
+     range: "Sensor range sectors",
      trails: "Movement trails",
      landmarks: "Memory landmarks",
    },
@@ -67,16 +65,15 @@ document.querySelector("#app")!.innerHTML = `
        `<label><input type="checkbox" id="layer-${k}" ${layers[k as keyof Layers] ? "checked" : ""}>${label}</label>`,
    )
    .join("")}</div></section>
- <p class="method">Geometry-based sensing · Fixed 50 ms steps<br>30 × 30 × 36 m · 1 m occupancy voxels</p></aside>
- <article class="viewport"><div class="view-toolbar"><span><i class="dot"></i> LIVE SPATIAL VIEW</span><div class="view-options"><div id="knowledge-view" class="knowledge-switch" role="group" aria-label="Displayed knowledge"><button data-knowledge="world" aria-pressed="true">All</button><button data-knowledge="human" aria-pressed="false">Human</button><button data-knowledge="bat" aria-pressed="false">Bat</button><button data-knowledge="overlap" aria-pressed="false">Shared</button></div><label class="cutaway-label"><input id="map-memory" type="checkbox">Accumulated memory</label><label class="cutaway-label"><input id="cutaway" type="checkbox" checked>Front cutaway</label><select id="camera" aria-label="Camera view"><option value="orbit">Orbit view</option><option value="top">Top view</option><option value="follow-human">Follow human</option><option value="follow-bat">Follow bat</option><option value="follow-mouse">Follow mouse</option></select></div></div><div class="transport"><button id="start" class="primary">▶ Start experiment</button><button id="reset">↺ Reset</button><label>Speed<select id="speed"><option>1</option><option>2</option><option>4</option><option>6</option><option>10</option></select><span>×</span></label><div class="clock"><strong id="time">00:00.0</strong><span id="limit">/ 300 s</span></div></div><div id="scene" aria-label="Interactive 3D maze"></div><div id="render-error" hidden></div><div class="view-caption">CURRENT SCAN REGIONS · 36 m HIGH MAZE · FRONT CUTAWAY IS DISPLAY ONLY</div><div class="legend"><span class="human">● LiDAR knowledge</span><span class="bat">● Echo knowledge</span><span class="both">● Shared discovery</span><span>○ Unknown</span></div></article>
- <aside class="analytics" id="analytics-panel"><div class="eyebrow">LIVE OBSERVATIONS</div><div id="result" role="status">Ready to explore<span>Start both agents simultaneously.</span></div><div id="metrics"></div><section class="mouse-card"><div class="section-title"><b>●</b> Mouse / moving target</div><div id="mouse-status"></div><p class="hint">Passive hearing belongs to the bat only. Cues are uncertain and attenuated by intervening walls.</p></section><section><div class="section-title">Material key</div><div class="material-key"><span>▧ Foam / opaque, sound absorbing</span><span>▱ Glass / transparent, blue frame</span><span>▦ Concrete / opaque</span><span>▰ Metal / opaque, reflective</span></div></section><button id="export">↓ Export experiment JSON</button><p class="method">Coverage measures observed free 3D volume. Accuracy measures correct classifications among known voxels; unknown cells are excluded. Different mobility means this compares complete agent systems.</p><a href="https://github.com/Hoonizzz/Spatial-Ai" target="_blank" rel="noreferrer">Source & methodology ↗</a></aside></main>`;
+ <p class="method">Geometry-based sensing · Fixed 50 ms steps<br>30 × 30 m · 1 m map cells</p></aside>
+ <article class="viewport"><div class="view-toolbar"><span><i class="dot"></i> 2D MAZE PLAN</span><div class="view-options"><div id="knowledge-view" class="knowledge-switch" role="group" aria-label="Displayed knowledge"><button data-knowledge="world" aria-pressed="true">All</button><button data-knowledge="human" aria-pressed="false">Human</button><button data-knowledge="bat" aria-pressed="false">Bat</button><button data-knowledge="overlap" aria-pressed="false">Shared</button></div><label class="cutaway-label"><input id="map-memory" type="checkbox">Accumulated memory</label><select id="camera" aria-label="Camera view"><option value="fit">Fit whole maze</option><option value="follow-human">Follow human</option><option value="follow-bat">Follow bat</option><option value="follow-mouse">Follow mouse</option></select><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button></div></div><div class="transport"><button id="start" class="primary">▶ Start experiment</button><button id="reset">↺ Reset</button><label>Speed<select id="speed"><option>1</option><option>2</option><option>4</option><option>6</option><option>10</option></select><span>×</span></label><div class="clock"><strong id="time">00:00.0</strong><span id="limit">/ 300 s</span></div></div><div id="scene" aria-label="Interactive 2D maze"></div><div id="render-error" hidden></div><div class="view-caption">CURRENT SCAN · DRAG TO PAN · SCROLL TO ZOOM · FIXED METRIC SCALE</div><div class="legend"><span class="human">● LiDAR knowledge</span><span class="bat">● Echo knowledge</span><span class="both">● Shared discovery</span><span>○ Unknown</span></div></article>
+ <aside class="analytics" id="analytics-panel"><div class="eyebrow">LIVE OBSERVATIONS</div><div id="result" role="status">Ready to explore<span>Start both agents simultaneously.</span></div><div id="metrics"></div><section class="mouse-card"><div class="section-title"><b>●</b> Mouse / moving target</div><div id="mouse-status"></div><p class="hint">Passive hearing belongs to the bat only. Cues are uncertain and attenuated by intervening walls.</p></section><section><div class="section-title">Material key</div><div class="material-key"><span>▧ Foam / opaque, sound absorbing</span><span>▱ Glass / transparent, blue frame</span><span>▦ Concrete / opaque</span><span>▰ Metal / opaque, reflective</span></div></section><button id="export">↓ Export experiment JSON</button><p class="method">Coverage measures observed free floor area. Accuracy measures correct known cells. Both agents use the same plane and default speed; sensing and hearing differ.</p><a href="https://github.com/Hoonizzz/Spatial-Ai" target="_blank" rel="noreferrer">Source & methodology ↗</a></aside></main>`;
 let scene: Scene | undefined;
 try {
   scene = new Scene($("scene"), sim);
 } catch (e) {
   $("render-error").hidden = false;
-  $("render-error").textContent =
-    `WebGL could not initialize: ${String(e)}. Simulation controls and metrics remain available.`;
+  $("render-error").textContent = `Canvas could not initialize: ${String(e)}.`;
 }
 function readConfig() {
   for (const [k] of [...sliders, ...advanced]) {
@@ -209,14 +206,14 @@ $("map-memory").addEventListener("change", () => {
     scene.showMemory = $<HTMLInputElement>("map-memory").checked;
     scene.frameScene();
     document.querySelector(".view-caption")!.textContent =
-      `${scene.showMemory ? "ACCUMULATED MEMORY" : "CURRENT SCAN REGIONS"} · 36 m HIGH MAZE · FRONT CUTAWAY IS DISPLAY ONLY`;
+      `${scene.showMemory ? "ACCUMULATED MEMORY" : "CURRENT SCAN REGIONS"} · DRAG TO PAN · SCROLL TO ZOOM · FIXED METRIC SCALE`;
   }
 });
-$("cutaway").addEventListener("change", () => {
-  if (scene) {
-    scene.cutaway = $<HTMLInputElement>("cutaway").checked;
-    scene.rebuild(sim);
-  }
+$("zoom-in").addEventListener("click", () => {
+  if (scene) scene.zoom = Math.min(4, scene.zoom * 1.2);
+});
+$("zoom-out").addEventListener("click", () => {
+  if (scene) scene.zoom = Math.max(1, scene.zoom / 1.2);
 });
 $("ui-size").addEventListener("change", () => {
   document.documentElement.style.setProperty(
@@ -238,12 +235,12 @@ function refresh() {
   $("metrics").innerHTML = sim.agents
     .map((a) => {
       const m = sim.metrics(a);
-      return `<section class="agent-card ${a.kind.toLowerCase()}"><div class="agent-head"><h2>${a.kind}</h2><span>${a.kind === "Human" ? "LiDAR / ground" : "Echo / flight"}</span></div><div class="agent-state">${a.state}<span>${a.p.y.toFixed(1)} m altitude</span></div><figure class="memory-plan"><canvas id="memory-${a.kind}" width="360" height="360" aria-label="${a.kind} observed ground slice"></canvas><figcaption>Own memory · ground slice 0–2 m<br>Filled regions = occupied · pale = free · gray = unknown</figcaption></figure><div class="metric-primary"><strong>${m.coverage.toFixed(1)}<small>%</small></strong><span>SPACE EXPLORED</span></div><div class="progress"><i style="width:${Math.min(100, m.coverage)}%"></i></div><dl><dt>Mapping accuracy</dt><dd>${m.accuracy.toFixed(1)}%</dd><dt>Distance traveled</dt><dd>${m.distance.toFixed(1)} m</dd><dt>Collision attempts</dt><dd>${m.collisions}</dd><dt>Failed detections</dt><dd>${m.failed}</dd><dt>Mouse detections</dt><dd>${m.detections}</dd><dt>Landmarks</dt><dd>${m.landmarks}</dd><dt>False occupied / free</dt><dd>${m.falseOccupied} / ${m.falseFree}</dd><dt>Unknown voxels</dt><dd>${m.unknown}</dd><dt>Capture time</dt><dd>${m.captureTime === null ? "—" : m.captureTime.toFixed(2) + " s"}</dd></dl></section>`;
+      return `<section class="agent-card ${a.kind.toLowerCase()}"><div class="agent-head"><h2>${a.kind}</h2><span>${a.kind === "Human" ? "LiDAR / planar" : "Echo / planar"}</span></div><div class="agent-state">${a.state}<span>x ${a.p.x.toFixed(1)} · y ${a.p.z.toFixed(1)} m</span></div><figure class="memory-plan"><canvas id="memory-${a.kind}" width="360" height="360" aria-label="${a.kind} independent planar memory"></canvas><figcaption>Own memory · 30 × 30 m<br>Filled regions = occupied · pale = free · gray = unknown</figcaption></figure><div class="metric-primary"><strong>${m.coverage.toFixed(1)}<small>%</small></strong><span>FLOOR OBSERVED</span></div><div class="progress"><i style="width:${Math.min(100, m.coverage)}%"></i></div><dl><dt>Mapping accuracy</dt><dd>${m.accuracy.toFixed(1)}%</dd><dt>Distance traveled</dt><dd>${m.distance.toFixed(1)} m</dd><dt>Collision attempts</dt><dd>${m.collisions}</dd><dt>Failed detections</dt><dd>${m.failed}</dd><dt>Mouse detections</dt><dd>${m.detections}</dd><dt>Landmarks</dt><dd>${m.landmarks}</dd><dt>False occupied / free</dt><dd>${m.falseOccupied} / ${m.falseFree}</dd><dt>Unknown cells</dt><dd>${m.unknown}</dd><dt>Capture time</dt><dd>${m.captureTime === null ? "—" : m.captureTime.toFixed(2) + " s"}</dd></dl></section>`;
     })
     .join("");
   drawMemoryPlans();
   $("mouse-status").textContent =
-    `${sim.mouse.moving ? "Moving · emitting intermittent sound" : "Stationary · no new sound"} / ${sim.mouse.p.y.toFixed(1)} m altitude`;
+    `${sim.mouse.moving ? "Moving · emitting intermittent sound" : "Stationary · no new sound"} / planar target`;
   if (sim.winner) $("start").textContent = "↻ New experiment";
 }
 let last = performance.now(),

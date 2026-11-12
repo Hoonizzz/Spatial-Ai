@@ -21,9 +21,7 @@ export type Config = {
   lidarNoise: number;
   echoNoise: number;
   lidarFov: number;
-  lidarVertical: number;
   echoFov: number;
-  echoVertical: number;
   echoThreshold: number;
   humanSpeed: number;
   batSpeed: number;
@@ -42,12 +40,10 @@ export const defaults = (): Config => ({
   lidarNoise: 0.025,
   echoNoise: 0.16,
   lidarFov: 120,
-  lidarVertical: 60,
   echoFov: 100,
-  echoVertical: 80,
   echoThreshold: 0.09,
   humanSpeed: 1.8,
-  batSpeed: 2.2,
+  batSpeed: 1.8,
   mouseSpeed: 1.2,
   captureRadius: 0.8,
   timeLimit: 300,
@@ -97,7 +93,7 @@ export class Simulation {
     this.mouseRng = new RNG(config.seed ^ 0xabcdef);
     this.agents = (["Human", "Bat"] as const).map((kind, i) => ({
       kind,
-      p: { x: 3, y: i ? 2.5 : 0.55, z: 11 },
+      p: { x: 3, y: 0.5, z: 11 },
       heading: 0,
       memory: new Memory(),
       path: [],
@@ -116,10 +112,10 @@ export class Simulation {
       captureTime: null,
     }));
     this.mouse = {
-      p: { x: 25, y: 0.35, z: 25 },
+      p: { x: 25, y: 0.5, z: 25 },
       moving: true,
       heading: 0,
-      goal: { x: 25, y: 0.35, z: 25 },
+      goal: { x: 25, y: 0.5, z: 25 },
       nextDecision: 0,
       trail: [],
     };
@@ -128,7 +124,7 @@ export class Simulation {
       .map((s) => s.split(",").map(Number))
       .filter(([x, z]) => x > 8 && z > 8);
     const [mx, mz] = this.mouseRng.pick(sites);
-    this.mouse.p = { x: mx * 2 + 1, y: 0.35, z: mz * 2 + 1 };
+    this.mouse.p = { x: mx * 2 + 1, y: 0.5, z: mz * 2 + 1 };
     this.mouse.goal = { ...this.mouse.p };
     for (let x = 0; x < 30; x++)
       for (let y = 0; y < MAZE_HEIGHT; y++)
@@ -140,30 +136,16 @@ export class Simulation {
     const c = this.config,
       human = a.kind === "Human",
       range = human ? c.lidarRange : c.echoRange,
-      hfov = ((human ? c.lidarFov : c.echoFov) * Math.PI) / 180,
-      vfov = ((human ? c.lidarVertical : c.echoVertical) * Math.PI) / 180;
+      hfov = ((human ? c.lidarFov : c.echoFov) * Math.PI) / 180;
     a.memory.current.clear();
     a.rays = [];
     a.scanTime = this.time;
     const directions: V[] = [];
-    for (let h = 0; h < 17; h++)
-      for (let v = 0; v < 7; v++) {
-        const yaw = a.heading + (h / 16 - 0.5) * hfov,
-          pitch = (v / 6 - 0.5) * vfov;
-        directions.push({
-          x: Math.cos(yaw) * Math.cos(pitch),
-          y: Math.sin(pitch),
-          z: Math.sin(yaw) * Math.cos(pitch),
-        });
-      }
-    // Short downward rays supply observed support heights, not hidden navigation data.
-    directions.push(
-      { x: 0, y: -1, z: 0 },
-      { x: 0.6, y: -0.8, z: 0 },
-      { x: -0.6, y: -0.8, z: 0 },
-      { x: 0, y: -0.8, z: 0.6 },
-      { x: 0, y: -0.8, z: -0.6 },
-    );
+    const rayCount = human ? 81 : 61;
+    for (let h = 0; h < rayCount; h++) {
+      const yaw = a.heading + (h / (rayCount - 1) - 0.5) * hfov;
+      directions.push({ x: Math.cos(yaw), y: 0, z: Math.sin(yaw) });
+    }
     for (const direction of directions) {
       const hit = this.world.ray(a.p, direction, range);
       const end = hit?.p ?? {
@@ -216,12 +198,6 @@ export class Simulation {
       yaw = Math.atan2(this.mouse.p.z - a.p.z, this.mouse.p.x - a.p.x),
       angle = Math.abs(
         Math.atan2(Math.sin(yaw - a.heading), Math.cos(yaw - a.heading)),
-      ),
-      pitch = Math.abs(
-        Math.atan2(
-          this.mouse.p.y - a.p.y,
-          Math.hypot(this.mouse.p.x - a.p.x, this.mouse.p.z - a.p.z),
-        ),
       );
     const targetStrength = 0.65 / (1 + (d / 4) ** 2),
       targetChance = human
@@ -232,7 +208,6 @@ export class Simulation {
     if (
       d <= range &&
       angle <= hfov / 2 &&
-      pitch <= vfov / 2 &&
       this.world.line(a.p, this.mouse.p) &&
       a.rng.next() < targetChance
     ) {
@@ -263,7 +238,7 @@ export class Simulation {
           [0, -2],
         ]
           .map(([x, z]) => ({ x: m.p.x + x, y: 0, z: m.p.z + z }))
-          .map((p) => ({ ...p, y: this.world.surface(p.x, p.z) + 0.35 }))
+          .map((p) => ({ ...p, y: 0.5 }))
           .filter(
             (p) =>
               Math.abs(p.y - m.p.y) < 1.5 &&
@@ -291,7 +266,7 @@ export class Simulation {
           y: m.p.y,
           z: m.p.z + ((m.goal.z - m.p.z) * s) / d,
         };
-        p.y = this.world.surface(p.x, p.z) + 0.35;
+        p.y = 0.5;
         if (this.world.clear(p, 0.16) && Math.abs(p.y - m.p.y) < 0.4) {
           m.heading = Math.atan2(p.z - m.p.z, p.x - m.p.x);
           m.p = p;
@@ -343,7 +318,7 @@ export class Simulation {
           1,
           Math.min(29, sound.p.x + (a.rng.next() - 0.5) * spread * 2),
         ),
-        y: Math.max(1, sound.p.y + (a.rng.next() - 0.5) * spread),
+        y: 0.5,
         z: Math.max(
           1,
           Math.min(29, sound.p.z + (a.rng.next() - 0.5) * spread * 2),
@@ -375,7 +350,7 @@ export class Simulation {
         !a.path.length ||
         a.memory.blocked(a.path[0])
       ) {
-        a.path = plan(a.memory, a.p, a.kind === "Bat", a.target);
+        a.path = plan(a.memory, a.p, a.target);
         a.nextPlan = this.time + 1;
         if (!a.target) a.state = "Explore";
         const neighbors = [
@@ -407,18 +382,11 @@ export class Simulation {
               z: a.p.z + ((goal.z - a.p.z) * s) / d,
             };
           a.heading = Math.atan2(goal.z - a.p.z, goal.x - a.p.x);
-          // Only the physical collision resolver can consult ground truth.
-          if (a.kind === "Human") {
-            p.y = this.world.surface(p.x, p.z) + 0.55;
-          }
-          if (
-            this.world.clear(p) &&
-            Math.abs(p.y - a.p.y) < (a.kind === "Human" ? 0.3 : 1)
-          ) {
+          // Ground truth is consulted only for physical collision resolution.
+          p.y = 0.5;
+          if (this.world.clear(p)) {
             const moved = dist(a.p, p);
             a.distance += moved;
-            if (Math.abs(p.y - a.p.y) > 0.015)
-              a.memory.landmark(p, "vertical connection");
             a.p = p;
           } else {
             a.collisions++;

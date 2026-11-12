@@ -1049,11 +1049,220 @@ dl {
     font-size: 18px;
   }
 }
-.material-key span::before { content:""; display:inline-block; width:.55rem; height:.55rem; margin-right:.2rem; vertical-align:middle; border-radius:.08rem; border:2px solid #9b8eab; }
-.material-key span:nth-child(1)::before { background:#d68c91; }
-.material-key span:nth-child(2)::before { background:linear-gradient(45deg,#c5ebf3 25%,white 25%,white 50%,#c5ebf3 50%,#c5ebf3 75%,white 75%); border-color:#407f9e; }
-.material-key span:nth-child(3)::before { background:#f2dbb5; }
-.material-key span:nth-child(4)::before { background:#9bafc9; }
+.material-key span::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.2rem;
+  vertical-align: middle;
+  border-radius: 0.08rem;
+  border: 2px solid #9b8eab;
+}
+.material-key span:nth-child(1)::before {
+  background: #d68c91;
+}
+.material-key span:nth-child(2)::before {
+  background: linear-gradient(
+    45deg,
+    #c5ebf3 25%,
+    white 25%,
+    white 50%,
+    #c5ebf3 50%,
+    #c5ebf3 75%,
+    white 75%
+  );
+  border-color: #407f9e;
+}
+.material-key span:nth-child(3)::before {
+  background: #f2dbb5;
+}
+.material-key span:nth-child(4)::before {
+  background: #9bafc9;
+}
 
 /* Keep playback controls above the scene and visible before scrolling. */
-.viewport { grid-template-rows:auto auto minmax(380px,1fr) auto auto; }
+.viewport {
+  grid-template-rows: auto auto minmax(380px, 1fr) auto auto;
+}
+/* The planar workspace keeps the complete maze and its controls together. */
+main {
+  display: grid;
+  grid-template-columns: minmax(340px, 22%) minmax(0, 1fr) minmax(340px, 22%);
+  grid-template-areas: "controls view analytics";
+}
+.controls {
+  grid-area: controls;
+  display: block;
+  width: auto;
+  order: 0;
+}
+.analytics {
+  grid-area: analytics;
+  display: block;
+  width: auto;
+  order: 0;
+}
+.viewport {
+  grid-area: view;
+  order: 0;
+  width: auto;
+  height: calc(100svh - 112px);
+  min-height: 680px;
+  position: sticky;
+  top: 0;
+}
+aside {
+  padding: 20px;
+}
+h1 {
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+section {
+  padding: 16px;
+  margin-top: 18px;
+}
+.eyebrow {
+  font-size: 0.45rem;
+  margin-bottom: 12px;
+  letter-spacing: 0.08em;
+}
+.intro,
+.range-label,
+label,
+.section-title {
+  font-size: 0.6rem;
+}
+.hint,
+.method {
+  font-size: max(14px, 0.46rem);
+}
+.section-title {
+  margin-bottom: 12px;
+}
+input[type="range"] {
+  margin: 8px 0 16px;
+}
+.seed-row label {
+  width: 100%;
+}
+.seed-row button {
+  font-size: 0.55rem;
+}
+.agent-head h2 {
+  font-size: 0.85rem;
+}
+.agent-state {
+  font-size: 0.48rem;
+}
+.memory-plan {
+  margin: 14px 0;
+}
+.memory-plan figcaption {
+  font-size: max(13px, 0.43rem);
+}
+.metric-primary {
+  margin-top: 16px;
+}
+.metric-primary strong {
+  font-size: 1.3rem;
+}
+dl {
+  font-size: max(14px, 0.48rem);
+  gap: 10px;
+}
+.view-toolbar {
+  padding: 12px;
+  gap: 10px;
+}
+.view-toolbar > span {
+  font-size: max(14px, 0.48rem);
+}
+.view-options {
+  gap: 8px;
+}
+.view-options select,
+.cutaway-label {
+  font-size: max(14px, 0.5rem);
+}
+.knowledge-switch button {
+  font-size: max(15px, 0.5rem);
+  padding: 9px 12px;
+}
+#zoom-in,
+#zoom-out {
+  padding: 6px 13px;
+  font-size: 22px;
+}
+.transport {
+  padding: 10px;
+  gap: 8px;
+}
+.transport button {
+  font-size: max(16px, 0.54rem);
+  padding: 10px 12px;
+}
+.transport label {
+  font-size: max(15px, 0.48rem);
+}
+.clock strong {
+  font-size: 0.8rem;
+}
+.view-caption {
+  font-size: 12px;
+  padding: 8px;
+}
+.legend {
+  font-size: 14px;
+  padding: 8px;
+  gap: 12px;
+}
+#scene {
+  min-height: 300px;
+  background: #eef4f2;
+}
+#scene canvas {
+  cursor: grab;
+}
+#scene canvas:active {
+  cursor: grabbing;
+}
+.analytics #metrics {
+  display: block;
+}
+#export {
+  font-size: 0.55rem;
+}
+@media (max-width: 1200px) {
+  main {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "view view" "controls analytics";
+  }
+  .viewport {
+    position: relative;
+    height: 900px;
+  }
+}
+@media (max-width: 750px) {
+  main {
+    display: flex;
+  }
+  .viewport {
+    order: 0;
+    width: 100%;
+    height: 880px;
+    min-height: 750px;
+  }
+  .controls {
+    order: 1;
+    width: 100%;
+  }
+  .analytics {
+    order: 2;
+    width: 100%;
+  }
+  :root {
+    font-size: 26px;
+  }
+}

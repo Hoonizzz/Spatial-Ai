@@ -1,9 +1,7 @@
-import * as T from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { Simulation, type Agent } from "./simulation";
+import { Simulation } from "./simulation";
 import { materials, type V } from "./world";
 import {
-  buildRegionSurface,
+  mergePlanRegions,
   selectRegionCells,
   type KnowledgeMode,
 } from "./regions";
@@ -17,532 +15,136 @@ export type Layers = {
   landmarks: boolean;
   geometry: boolean;
 };
-const vec = (p: V) => new T.Vector3(p.x, p.y, p.z);
+const ownerColor = { human: "#1769ce", bat: "#c86216", both: "#8547b9" };
+const freeColor = { human: "#b6d7ff", bat: "#ffcfaa", both: "#d8beed" };
 export class Scene {
-  renderer: T.WebGLRenderer;
-  scene = new T.Scene();
-  camera = new T.PerspectiveCamera(43, 1, 0.1, 180);
-  controls: OrbitControls;
-  environment = new T.Group();
-  dynamic = new T.Group();
-  human = new T.Group();
-  bat = new T.Group();
-  mouse = new T.Group();
-  map = Object.assign(new T.Group(), { count: 0 });
-  cameraMode = "orbit";
+  canvas = document.createElement("canvas");
+  ctx: CanvasRenderingContext2D;
   knowledgeMode: KnowledgeMode = "world";
-  cutaway = true;
   showMemory = false;
-  lastMap = "";
-  sim: Simulation;
+  cameraMode = "fit";
+  zoom = 1;
+  pan = { x: 0, z: 0 };
+  width = 1;
+  height = 1;
+  scale = 1;
+  origin = { x: 0, z: 0 };
+  drawnRegions = 0;
+  lastRevision = "";
+  regions: ReturnType<typeof mergePlanRegions> = [];
   constructor(
     public host: HTMLElement,
-    sim: Simulation,
+    public sim: Simulation,
   ) {
-    this.sim = sim;
-    this.renderer = new T.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-    this.renderer.setClearColor(0xdceef1);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = T.PCFSoftShadowMap;
-    this.renderer.toneMapping = T.ACESFilmicToneMapping;
-    this.renderer.outputColorSpace = T.SRGBColorSpace;
-    host.append(this.renderer.domElement);
-    this.camera.position.set(65, 80, 70);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(15, 18, 15);
-    this.controls.enableDamping = true;
-    this.controls.maxPolarAngle = Math.PI * 0.49;
-    this.scene.add(new T.HemisphereLight(0xfff7e5, 0xaaa4c6, 2.4));
-    const light = new T.DirectionalLight(0xffffff, 2.5);
-    light.position.set(-8, 65, 18);
-    light.castShadow = true;
-    light.shadow.mapSize.set(2048, 2048);
-    Object.assign(light.shadow.camera, {
-      left: -30,
-      right: 30,
-      top: 30,
-      bottom: -30,
-      far: 150,
-    });
-    light.shadow.normalBias = 0.08;
-    this.scene.add(light);
-    this.scene.add(
-      this.environment,
-      this.dynamic,
-      this.human,
-      this.bat,
-      this.mouse,
+    this.canvas.setAttribute(
+      "aria-label",
+      "Interactive two-dimensional maze plan",
     );
-    this.scene.add(this.map);
-    this.makeActors();
-    this.labelActor(this.human, "HUMAN", "#1469c9", 1.5);
-    this.labelActor(this.bat, "BAT", "#c7631d", 0.8);
-    this.labelActor(this.mouse, "MOUSE", "#567c3d", 0.65);
-    this.rebuild(sim);
+    this.canvas.setAttribute("role", "img");
+    host.append(this.canvas);
+    this.ctx = this.canvas.getContext("2d")!;
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
-    this.frameScene();
-  }
-  mesh(
-    group: T.Group,
-    geometry: T.BufferGeometry,
-    color: number,
-    x: number,
-    y: number,
-    z: number,
-  ) {
-    const m = new T.Mesh(
-      geometry,
-      new T.MeshStandardMaterial({ color, roughness: 0.7 }),
+    let drag: { x: number; y: number; px: number; pz: number } | null = null;
+    this.canvas.addEventListener("pointerdown", (e) => {
+      drag = { x: e.clientX, y: e.clientY, px: this.pan.x, pz: this.pan.z };
+      this.canvas.setPointerCapture(e.pointerId);
+      this.cameraMode = "fit";
+    });
+    this.canvas.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      this.pan = {
+        x: drag.px + (e.clientX - drag.x) / this.scale,
+        z: drag.pz + (e.clientY - drag.y) / this.scale,
+      };
+    });
+    const end = () => (drag = null);
+    this.canvas.addEventListener("pointerup", end);
+    this.canvas.addEventListener("pointercancel", end);
+    this.canvas.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        this.zoom = Math.max(
+          1,
+          Math.min(4, this.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)),
+        );
+      },
+      { passive: false },
     );
-    m.position.set(x, y, z);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    group.add(m);
-    return m;
-  }
-  labelActor(group: T.Group, text: string, color: string, height: number) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 128;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#fffdf5";
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.roundRect(4, 4, 504, 120, 24);
-    ctx.fill();
-    ctx.stroke();
-    ctx.font = "bold 66px system-ui";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = color;
-    ctx.fillText(text, 256, 66);
-    const texture = new T.CanvasTexture(canvas);
-    texture.colorSpace = T.SRGBColorSpace;
-    const label = new T.Sprite(
-      new T.SpriteMaterial({
-        map: texture,
-        depthTest: false,
-        depthWrite: false,
-      }),
-    );
-    label.scale.set(2.5, 0.625, 1);
-    label.position.set(0, height, 0);
-    label.renderOrder = 5;
-    group.add(label);
-  }
-  makeActors() {
-    this.mesh(
-      this.human,
-      new T.CapsuleGeometry(0.19, 0.45, 4, 8),
-      0x46aaff,
-      0,
-      0.1,
-      0,
-    );
-    this.mesh(
-      this.human,
-      new T.SphereGeometry(0.18, 12, 8),
-      0xd9c8b1,
-      0,
-      0.65,
-      0,
-    );
-    for (const x of [-0.13, 0.13])
-      this.mesh(
-        this.human,
-        new T.BoxGeometry(0.13, 0.45, 0.15),
-        0x4585ad,
-        x,
-        -0.35,
-        0,
-      );
-    this.mesh(
-      this.human,
-      new T.BoxGeometry(0.13, 0.12, 0.19),
-      0x98ecff,
-      0.18,
-      0.5,
-      0,
-    );
-    this.mesh(this.bat, new T.SphereGeometry(0.18, 12, 8), 0xf9a14b, 0, 0, 0);
-    const shape = new T.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(0.8, -0.25);
-    shape.lineTo(0.65, 0.12);
-    shape.lineTo(0.43, 0.03);
-    shape.lineTo(0.27, 0.19);
-    shape.lineTo(0, 0.03);
-    const wing = new T.ShapeGeometry(shape);
-    for (const s of [-1, 1]) {
-      const m = new T.Mesh(
-        wing,
-        new T.MeshStandardMaterial({ color: 0xec933e, side: T.DoubleSide }),
-      );
-      m.rotation.x = -Math.PI / 2;
-      m.scale.x = s;
-      this.bat.add(m);
-    }
-    for (const x of [-0.1, 0.1])
-      this.mesh(
-        this.bat,
-        new T.ConeGeometry(0.08, 0.2, 4),
-        0xffc17d,
-        x,
-        0.2,
-        0,
-      );
-    const body = this.mesh(
-      this.mouse,
-      new T.SphereGeometry(0.2, 12, 8),
-      0xa9d58e,
-      0,
-      0,
-      0,
-    );
-    body.scale.set(1.4, 0.8, 0.8);
-    for (const z of [-0.13, 0.13])
-      this.mesh(
-        this.mouse,
-        new T.SphereGeometry(0.1, 10, 8),
-        0xe1baa9,
-        0.15,
-        0.13,
-        z,
-      );
-    this.mesh(
-      this.mouse,
-      new T.CylinderGeometry(0.02, 0.02, 0.45, 6),
-      0xa5b698,
-      -0.35,
-      0,
-      0,
-    ).rotation.z = Math.PI / 2;
-  }
-  clear(group: T.Group) {
-    for (const o of [...group.children]) {
-      group.remove(o);
-      o.traverse((v) => {
-        if (
-          v instanceof T.Mesh ||
-          v instanceof T.Line ||
-          v instanceof T.Points
-        ) {
-          v.geometry.dispose();
-          const m = v.material;
-          for (const material of Array.isArray(m) ? m : [m]) material.dispose();
-        }
-      });
-    }
   }
   rebuild(sim: Simulation) {
     this.sim = sim;
-    this.clear(this.environment);
-    this.lastMap = "";
-    const floor = this.mesh(
-      this.environment,
-      new T.BoxGeometry(31, 0.4, 31),
-      0xc4bbd8,
-      15,
-      -0.2,
-      15,
-    );
-    floor.receiveShadow = true;
-    const grid = new T.GridHelper(30, 30, 0xc5bcd6, 0xd0c8df);
-    grid.position.set(15, 0.015, 15);
-    this.environment.add(grid);
-    for (const w of sim.world.walls) {
-      const frontBoundary = w.x === 28 || w.z === 28;
-      const displayHeight = this.cutaway && frontBoundary ? 4 : w.height;
-      const m = this.mesh(
-        this.environment,
-        new T.BoxGeometry(1.96, displayHeight, 1.96),
-        materials[w.material].color,
-        w.x + 1,
-        displayHeight / 2,
-        w.z + 1,
-      );
-      const material = m.material as T.MeshStandardMaterial;
-      material.transparent = w.material === "glass";
-      material.opacity = w.material === "glass" ? 0.27 : 1;
-      material.depthWrite = w.material !== "glass";
-      material.roughness = w.material === "metal" ? 0.28 : 0.85;
-      material.metalness = w.material === "metal" ? 0.45 : 0;
-      m.userData.materialType = w.material;
-      if (w.material === "glass") {
-        // A visible opaque frame distinguishes glass from empty passages.
-        for (const dx of [-0.92, 0.92])
-          this.mesh(
-            this.environment,
-            new T.BoxGeometry(0.1, displayHeight, 0.1),
-            0x407f9e,
-            w.x + 1 + dx,
-            displayHeight / 2,
-            w.z + 0.08,
-          );
-        this.mesh(
-          this.environment,
-          new T.BoxGeometry(2, 0.1, 0.1),
-          0x407f9e,
-          w.x + 1,
-          displayHeight,
-          w.z + 0.08,
-        );
-      } else {
-        this.mesh(
-          this.environment,
-          new T.BoxGeometry(2, 0.1, 2),
-          w.material === "foam"
-            ? 0xe4a3a3
-            : w.material === "metal"
-              ? 0xc7d5e3
-              : 0xffedcd,
-          w.x + 1,
-          displayHeight + 0.04,
-          w.z + 1,
-        );
-      }
-      const edges = new T.LineSegments(
-        new T.EdgesGeometry(m.geometry),
-        new T.LineBasicMaterial({
-          color: materials[w.material].color,
-          transparent: true,
-          opacity: 0.18,
-        }),
-      );
-      edges.position.copy(m.position);
-      this.environment.add(edges);
-    }
-    this.mesh(
-      this.environment,
-      new T.BoxGeometry(4, 0.3, 6),
-      0xf2b779,
-      11,
-      3.85,
-      6,
-    );
-    const ramp = new T.BufferGeometry();
-    ramp.setAttribute(
-      "position",
-      new T.Float32BufferAttribute(
-        [3, 0, 3, 9, 4, 3, 9, 4, 5, 3, 0, 3, 9, 4, 5, 3, 0, 5],
-        3,
-      ),
-    );
-    ramp.computeVertexNormals();
-    const rm = new T.Mesh(
-      ramp,
-      new T.MeshStandardMaterial({ color: 0xf2c589, side: T.DoubleSide }),
-    );
-    this.environment.add(rm);
+    this.lastRevision = "";
+    this.frameScene();
   }
   resize() {
-    const { width, height } = this.host.getBoundingClientRect();
-    if (!width || !height) return;
-    this.renderer.setSize(width, height);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    const r = this.host.getBoundingClientRect();
+    this.width = Math.max(1, r.width);
+    this.height = Math.max(1, r.height);
+    const dpr = Math.min(devicePixelRatio, 2);
+    this.canvas.width = Math.round(this.width * dpr);
+    this.canvas.height = Math.round(this.height * dpr);
   }
-  line(points: V[], color: number, opacity = 1) {
+  frameScene() {
+    this.zoom = 1;
+    this.pan = { x: 0, z: 0 };
+  }
+  setKnowledgeMode(mode: KnowledgeMode) {
+    this.knowledgeMode = mode;
+    this.lastRevision = "";
+  }
+  setCamera(mode: string) {
+    this.cameraMode = mode;
+    this.frameScene();
+    if (mode !== "fit") this.zoom = 1.6;
+  }
+  visibleAgent(index: number) {
+    return (
+      this.knowledgeMode === "world" ||
+      this.knowledgeMode === (index ? "bat" : "human")
+    );
+  }
+  path(points: V[], color: string, width: number, alpha = 1) {
     if (points.length < 2) return;
-    const g = new T.BufferGeometry().setFromPoints(points.map(vec)),
-      line = new T.Line(
-        g,
-        new T.LineBasicMaterial({ color, transparent: true, opacity }),
-      );
-    this.dynamic.add(line);
+    const c = this.ctx;
+    c.beginPath();
+    c.moveTo(points[0].x, points[0].z);
+    for (const p of points.slice(1)) c.lineTo(p.x, p.z);
+    c.strokeStyle = color;
+    c.lineWidth = width;
+    c.globalAlpha = alpha;
+    c.stroke();
+    c.globalAlpha = 1;
   }
-  volume(a: Agent, range: number, hfov: number, vfov: number, color: number) {
-    const points: V[] = [];
-    for (const pitch of [-vfov / 2, vfov / 2])
-      for (let i = 0; i <= 24; i++) {
-        const yaw = a.heading + (i / 24 - 0.5) * hfov;
-        points.push({
-          x: a.p.x + Math.cos(yaw) * Math.cos(pitch) * range,
-          y: a.p.y + Math.sin(pitch) * range,
-          z: a.p.z + Math.sin(yaw) * Math.cos(pitch) * range,
-        });
-      }
-    const corners = [0, 24, 49, 25],
-      vertices: number[] = [];
-    for (let i = 0; i < 4; i++) {
-      const b = points[corners[i]],
-        c = points[corners[(i + 1) % 4]];
-      vertices.push(a.p.x, a.p.y, a.p.z, b.x, b.y, b.z, c.x, c.y, c.z);
-    }
-    const geometry = new T.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new T.Float32BufferAttribute(vertices, 3),
-    );
-    this.dynamic.add(
-      new T.Mesh(
-        geometry,
-        new T.MeshBasicMaterial({
-          color,
-          side: T.DoubleSide,
-          transparent: true,
-          opacity: 0.035,
-          depthWrite: false,
-        }),
-      ),
-    );
-    this.line(points.slice(0, 25), color, 0.28);
-    this.line(points.slice(25), color, 0.28);
-    for (const i of [0, 24, 25, 49]) this.line([a.p, points[i]], color, 0.22);
-  }
-  ring(p: V, radius: number, color: number, opacity: number) {
-    const mesh = new T.Mesh(
-      new T.RingGeometry(Math.max(0.01, radius - 0.035), radius, 40),
-      new T.MeshBasicMaterial({
-        color,
-        side: T.DoubleSide,
-        transparent: true,
-        opacity,
-        depthWrite: false,
-      }),
-    );
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(p.x, p.y, p.z);
-    this.dynamic.add(mesh);
+  label(p: V, text: string, color: string, offset: number) {
+    const c = this.ctx;
+    c.font = `600 ${Math.max(0.52, 14 / this.scale)}px system-ui`;
+    const w = c.measureText(text).width + 0.4,
+      h = Math.max(0.75, 20 / this.scale),
+      z = p.z + offset;
+    c.fillStyle = "#fffdf5";
+    c.strokeStyle = color;
+    c.lineWidth = 1.3 / this.scale;
+    c.beginPath();
+    c.roundRect(p.x - w / 2, z - h / 2, w, h, 0.12);
+    c.fill();
+    c.stroke();
+    c.fillStyle = color;
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.fillText(text, p.x, z);
   }
   update(layers: Layers) {
-    const s = this.sim;
-    this.clear(this.dynamic);
-    this.environment.visible =
-      layers.geometry && this.knowledgeMode === "world";
-    this.map.visible = layers.maps;
-    this.human.visible =
-      this.knowledgeMode === "world" || this.knowledgeMode === "human";
-    this.bat.visible =
-      this.knowledgeMode === "world" || this.knowledgeMode === "bat";
-    this.mouse.visible = this.knowledgeMode === "world";
-    this.human.position.copy(vec(s.agents[0].p));
-    this.bat.position.copy(vec(s.agents[1].p));
-    this.mouse.position.copy(vec(s.mouse.p));
-    this.human.rotation.y = -s.agents[0].heading + Math.PI / 2;
-    this.bat.rotation.y = -s.agents[1].heading;
-    this.mouse.rotation.y = -s.mouse.heading;
-    for (const [i, a] of s.agents.entries()) {
-      if (
-        (this.knowledgeMode === "human" && i !== 0) ||
-        (this.knowledgeMode === "bat" && i !== 1) ||
-        this.knowledgeMode === "overlap"
-      )
-        continue;
-      const color = i ? 0xffa252 : 0x54b3ff;
-      const age = s.time - a.scanTime,
-        interval = i ? s.config.echoInterval : s.config.lidarInterval;
-      if (layers.range)
-        this.volume(
-          a,
-          i ? s.config.echoRange : s.config.lidarRange,
-          ((i ? s.config.echoFov : s.config.lidarFov) * Math.PI) / 180,
-          ((i ? s.config.echoVertical : s.config.lidarVertical) * Math.PI) /
-            180,
-          color,
-        );
-      if (!i && layers.rays && age < 0.13) {
-        const g = new T.BufferGeometry().setFromPoints(
-          a.rays.flatMap((r) => [vec(r.a), vec(r.b)]),
-        );
-        this.dynamic.add(
-          new T.LineSegments(
-            g,
-            new T.LineBasicMaterial({
-              color,
-              transparent: true,
-              opacity: 0.24,
-            }),
-          ),
-        );
-      }
-      if (i && layers.pulses && age < interval) {
-        this.ring(
-          a.p,
-          Math.max(0.05, (s.config.echoRange * age) / interval),
-          color,
-          0.5 * (1 - age / interval),
-        );
-      }
-      if (layers.trails) this.line(a.trail, color, 0.7);
-      if (layers.landmarks)
-        for (const { p, kind } of a.memory.landmarks.values()) {
-          if (kind === "intersection" && a.memory.landmarks.size > 100)
-            continue;
-          this.mesh(
-            this.dynamic,
-            new T.OctahedronGeometry(kind === "sound cue" ? 0.19 : 0.1),
-            color,
-            p.x,
-            p.y + 0.3,
-            p.z,
-          );
-        }
-    }
-    if (layers.sound && this.knowledgeMode === "world")
-      for (const sound of s.sounds)
-        this.ring(
-          sound.p,
-          Math.min(s.config.soundRange, (s.time - sound.time) * 9) + 0.05,
-          0xb5d8a2,
-          Math.max(0, 0.5 - (s.time - sound.time) * 0.6),
-        );
-    const mapRevision =
-      s.agents
-        .map((a) => `${a.scanTime}:${a.memory.cells.size}:${a.collisions}`)
-        .join("/") +
-      this.knowledgeMode +
-      this.cutaway +
-      this.showMemory;
-    if (layers.maps && mapRevision !== this.lastMap) {
-      this.lastMap = mapRevision;
-      const cells = selectRegionCells(
-        s.agents.map((a) => a.memory),
-        this.knowledgeMode,
-        !this.showMemory,
-      );
-      this.clear(this.map);
-      for (const occupied of [true, false]) {
-        const surface = buildRegionSurface(cells, occupied);
-        if (!surface.positions.length) continue;
-        const geometry = new T.BufferGeometry();
-        geometry.setAttribute(
-          "position",
-          new T.Float32BufferAttribute(surface.positions, 3),
-        );
-        // Palette RGB values are sRGB; vertex attributes must be linear.
-        const colors = [];
-        for (let i = 0; i < surface.colors.length; i += 3) {
-          const color = new T.Color().setRGB(
-            surface.colors[i],
-            surface.colors[i + 1],
-            surface.colors[i + 2],
-            T.SRGBColorSpace,
-          );
-          colors.push(color.r, color.g, color.b);
-        }
-        geometry.setAttribute("color", new T.Float32BufferAttribute(colors, 3));
-        const mesh = new T.Mesh(
-          geometry,
-          new T.MeshBasicMaterial({
-            vertexColors: true,
-            side: T.DoubleSide,
-            polygonOffset: true,
-            polygonOffsetFactor: -1,
-            polygonOffsetUnits: -1,
-          }),
-        );
-        mesh.userData.region = occupied ? "occupied" : "ground-free";
-        mesh.userData.rectangles = surface.rectangles;
-        this.map.add(mesh);
-      }
-      this.map.count = [...cells].filter(
-        ([k, c]) => c.occupied || k.split(",")[1] === "0",
-      ).length;
-    }
+    const s = this.sim,
+      c = this.ctx,
+      dpr = this.canvas.width / this.width;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = this.knowledgeMode === "world" ? "#eef4f2" : "#e7eaf0";
+    c.fillRect(0, 0, this.width, this.height);
+    this.scale =
+      Math.max(1, (Math.min(this.width, this.height) - 48) / 30) * this.zoom;
+    let focus = { x: 15, z: 15 };
     if (this.cameraMode.startsWith("follow")) {
       const p =
         this.cameraMode === "follow-human"
@@ -550,63 +152,185 @@ export class Scene {
           : this.cameraMode === "follow-bat"
             ? s.agents[1].p
             : s.mouse.p;
-      this.controls.target.lerp(vec(p), 0.12);
+      if (
+        this.knowledgeMode === "world" ||
+        this.cameraMode === `follow-${this.knowledgeMode}`
+      )
+        focus = p;
     }
-    this.controls.update();
-    this.renderer.render(this.scene, this.camera);
-  }
-  frameScene() {
-    if (this.cameraMode !== "orbit" && this.cameraMode !== "top") return;
-    let bounds = new T.Box3(new T.Vector3(0, 0, 0), new T.Vector3(30, 36, 30));
-    if (this.knowledgeMode !== "world") {
-      bounds = new T.Box3();
-      const cells = selectRegionCells(
-        this.sim.agents.map((a) => a.memory),
-        this.knowledgeMode,
-        !this.showMemory,
+    this.origin = {
+      x: this.width / 2 - (focus.x - this.pan.x) * this.scale,
+      z: this.height / 2 - (focus.z - this.pan.z) * this.scale,
+    };
+    c.translate(this.origin.x, this.origin.z);
+    c.scale(this.scale, this.scale);
+    c.save();
+    c.beginPath();
+    c.rect(0, 0, 30, 30);
+    c.clip();
+    c.fillStyle = this.knowledgeMode === "world" ? "#fffdf6" : "#e0e4ec";
+    c.fillRect(0, 0, 30, 30);
+    if (this.knowledgeMode === "world" && layers.geometry)
+      for (const wall of s.world.walls) {
+        const x = wall.x,
+          z = wall.z;
+        c.fillStyle =
+          "#" + materials[wall.material].color.toString(16).padStart(6, "0");
+        c.fillRect(x, z, 2, 2);
+        c.strokeStyle = wall.material === "glass" ? "#397c9b" : "#9d8d9e";
+        c.lineWidth = wall.material === "glass" ? 0.1 : 0.025;
+        c.setLineDash(wall.material === "glass" ? [0.22, 0.12] : []);
+        c.strokeRect(x + 0.05, z + 0.05, 1.9, 1.9);
+        c.setLineDash([]);
+        if (wall.material === "foam") {
+          c.strokeStyle = "#ac606c";
+          c.lineWidth = 0.035;
+          for (let k = 0.4; k < 2; k += 0.5) {
+            c.beginPath();
+            c.moveTo(x + 0.1, z + k);
+            c.lineTo(x + k, z + 0.1);
+            c.stroke();
+          }
+        }
+        if (wall.material === "metal") {
+          c.fillStyle = "#617b99";
+          for (const dx of [0.28, 1.72])
+            for (const dz of [0.28, 1.72]) {
+              c.beginPath();
+              c.arc(x + dx, z + dz, 0.06, 0, Math.PI * 2);
+              c.fill();
+            }
+        }
+      }
+    const revision =
+      s.agents
+        .map((a) => `${a.scanTime}:${a.collisions}:${a.memory.cells.size}`)
+        .join("/") +
+      this.knowledgeMode +
+      this.showMemory;
+    if (revision !== this.lastRevision) {
+      this.regions = mergePlanRegions(
+        selectRegionCells(
+          s.agents.map((a) => a.memory),
+          this.knowledgeMode,
+          !this.showMemory,
+        ),
       );
-      for (const [k, c] of cells) {
-        const [x, y, z] = k.split(",").map(Number);
-        if (!c.occupied && y !== 0) continue;
-        bounds.expandByPoint(new T.Vector3(x, y, z));
-        bounds.expandByPoint(new T.Vector3(x + 1, y + 1, z + 1));
-      }
-      if (bounds.isEmpty()) {
-        const p = this.sim.agents[this.knowledgeMode === "bat" ? 1 : 0].p;
-        bounds.setFromCenterAndSize(vec(p), new T.Vector3(6, 6, 6));
-      }
+      this.lastRevision = revision;
     }
-    const center = bounds.getCenter(new T.Vector3()),
-      radius = bounds.getSize(new T.Vector3()).length() / 2;
-    const halfAngle = Math.atan(
-      Math.tan(T.MathUtils.degToRad(this.camera.fov / 2)) *
-        Math.min(1, this.camera.aspect),
-    );
-    const distance = Math.max(12, (radius / Math.sin(halfAngle)) * 1.08);
-    const direction = this.camera.position
-      .clone()
-      .sub(this.controls.target)
-      .normalize();
-    this.controls.target.copy(center);
-    this.camera.position.copy(center).addScaledVector(direction, distance);
-    this.controls.update();
-  }
-  setKnowledgeMode(mode: KnowledgeMode) {
-    this.knowledgeMode = mode;
-    this.frameScene();
-  }
-  setCamera(mode: string) {
-    this.cameraMode = mode;
-    if (mode === "top") {
-      this.controls.target.set(15, 0, 15);
-      this.camera.position.set(15, 88, 15.01);
-    } else if (mode === "orbit") {
-      this.controls.target.set(15, 18, 15);
-      this.camera.position.set(65, 80, 70);
-    } else {
-      this.camera.position.set(40, 45, 40);
+    this.drawnRegions = layers.maps ? this.regions.length : 0;
+    if (layers.maps)
+      for (const r of this.regions) {
+        if (this.knowledgeMode === "world" && r.occupied) {
+          c.strokeStyle = ownerColor[r.owner];
+          c.lineWidth = 0.08;
+          c.strokeRect(r.x + 0.06, r.z + 0.06, r.width - 0.12, r.depth - 0.12);
+          continue;
+        }
+        c.globalAlpha = this.knowledgeMode === "world" ? 0.55 : 1;
+        c.fillStyle = r.occupied ? ownerColor[r.owner] : freeColor[r.owner];
+        c.fillRect(r.x, r.z, r.width, r.depth);
+        c.globalAlpha = 1;
+      }
+    for (const [i, a] of s.agents.entries()) {
+      if (!this.visibleAgent(i)) continue;
+      const color = ownerColor[i ? "bat" : "human"],
+        age = s.time - a.scanTime;
+      if (layers.trails) this.path(a.trail, color, 0.06, 0.75);
+      if (layers.range) {
+        const range = i ? s.config.echoRange : s.config.lidarRange,
+          fov = ((i ? s.config.echoFov : s.config.lidarFov) * Math.PI) / 180;
+        c.beginPath();
+        c.moveTo(a.p.x, a.p.z);
+        c.arc(a.p.x, a.p.z, range, a.heading - fov / 2, a.heading + fov / 2);
+        c.closePath();
+        c.fillStyle = color;
+        c.globalAlpha = 0.08;
+        c.fill();
+        c.globalAlpha = 1;
+      }
+      if (layers.rays && i === 0 && age < 0.15)
+        for (const ray of a.rays) this.path([ray.a, ray.b], color, 0.025, 0.25);
+      if (layers.pulses && i === 1 && age < s.config.echoInterval) {
+        c.beginPath();
+        c.arc(
+          a.p.x,
+          a.p.z,
+          Math.max(0.1, (age / s.config.echoInterval) * s.config.echoRange),
+          0,
+          Math.PI * 2,
+        );
+        c.strokeStyle = color;
+        c.lineWidth = 0.04;
+        c.globalAlpha = 0.4;
+        c.stroke();
+        c.globalAlpha = 1;
+      }
+      if (layers.landmarks)
+        for (const landmark of a.memory.landmarks.values()) {
+          c.fillStyle = color;
+          c.fillRect(landmark.p.x - 0.1, landmark.p.z - 0.1, 0.2, 0.2);
+        }
     }
-    this.frameScene();
-    this.controls.update();
+    if (layers.sound && this.knowledgeMode === "world")
+      for (const sound of s.sounds) {
+        c.beginPath();
+        c.arc(
+          sound.p.x,
+          sound.p.z,
+          0.2 + (s.time - sound.time),
+          0,
+          Math.PI * 2,
+        );
+        c.strokeStyle = "#69924a";
+        c.lineWidth = 0.05;
+        c.stroke();
+      }
+    for (const [i, a] of s.agents.entries())
+      if (this.visibleAgent(i)) {
+        const radius = Math.max(i ? 0.4 : 0.28, 8 / this.scale),
+          color = ownerColor[i ? "bat" : "human"];
+        c.beginPath();
+        if (i) {
+          c.moveTo(a.p.x, a.p.z - radius);
+          c.lineTo(a.p.x + radius, a.p.z);
+          c.lineTo(a.p.x, a.p.z + radius);
+          c.lineTo(a.p.x - radius, a.p.z);
+          c.closePath();
+        } else c.arc(a.p.x, a.p.z, radius, 0, Math.PI * 2);
+        c.fillStyle = color;
+        c.fill();
+        c.strokeStyle = "white";
+        c.lineWidth = 2 / this.scale;
+        c.stroke();
+        this.label(a.p, i ? "BAT" : "HUMAN", color, i ? 1 : -1);
+      }
+    if (this.knowledgeMode === "world") {
+      const p = s.mouse.p;
+      c.beginPath();
+      c.arc(p.x, p.z, Math.max(0.22, 7 / this.scale), 0, Math.PI * 2);
+      c.fillStyle = "#507f39";
+      c.fill();
+      c.strokeStyle = "white";
+      c.lineWidth = 2 / this.scale;
+      c.stroke();
+      this.label(p, "MOUSE", "#507f39", 0.8);
+    }
+    c.restore();
+    c.strokeStyle = "#9ba9b7";
+    c.lineWidth = 1 / this.scale;
+    c.strokeRect(0, 0, 30, 30);
+    // A fixed metric scale makes perceived area comparable between views.
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.strokeStyle = "#4e6072";
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(18, this.height - 15);
+    c.lineTo(18 + 2 * this.scale, this.height - 15);
+    c.stroke();
+    c.font = "13px system-ui";
+    c.fillStyle = "#4e6072";
+    c.textAlign = "left";
+    c.fillText("2 m", 18, this.height - 22);
   }
 }

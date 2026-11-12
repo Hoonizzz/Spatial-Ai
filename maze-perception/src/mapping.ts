@@ -4,7 +4,6 @@ export class Memory {
   current = new Set<string>();
   visits = new Map<string, number>();
   landmarks = new Map<string, { p: V; kind: string }>();
-  floors = new Map<string, number>();
   forbidden = new Set<string>();
   observe(origin: V, end: V, occupied: boolean) {
     const d = Math.hypot(end.x - origin.x, end.y - origin.y, end.z - origin.z);
@@ -39,8 +38,6 @@ export class Memory {
       const k = key(end);
       this.cells.set(k, 1);
       this.current.add(k);
-      if (end.y < origin.y - 0.25)
-        this.floors.set(`${Math.floor(end.x)},${Math.floor(end.z)}`, end.y);
     }
   }
   landmark(p: V, kind: string) {
